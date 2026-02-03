@@ -9,7 +9,11 @@ let localState = {
     game: null,
     selectedTile: 'land-placeholder',
     selectedPort: null,
-    mapTemplate: null
+    mapTemplate: null,
+    canvasOffset: { x: 0, y: 0 },
+    canvasZoom: 1.0,
+    isDragging: false,
+    lastMousePos: { x: 0, y: 0 }
 };
 
 // ===== RECONNECTION SYSTEM =====
@@ -57,8 +61,18 @@ function checkForReconnection() {
 }
 
 function showReconnectDialog(gameCode, playerName) {
+    // Don't show if already in a game
+    if (localState.game && localState.currentScreen !== 'main-menu') {
+        return;
+    }
+    
+    // Don't show if dialog already exists
+    if (document.querySelector('.reconnect-dialog')) {
+        return;
+    }
+    
     const dialog = document.createElement('div');
-    dialog.className = 'modal';
+    dialog.className = 'modal reconnect-dialog';
     dialog.style.display = 'flex';
     dialog.innerHTML = `
         <div class="modal-content" style="max-width: 400px;">
@@ -93,10 +107,15 @@ function showReconnectDialog(gameCode, playerName) {
 
 // ===== SOCKET EVENT HANDLERS =====
 
+let hasCheckedReconnection = false;
+
 socket.on('connect', () => {
     console.log('🌟 Connected to Catan server!');
-    // Check for reconnection after connection
-    setTimeout(checkForReconnection, 500);
+    // Only check for reconnection once on initial load
+    if (!hasCheckedReconnection) {
+        hasCheckedReconnection = true;
+        setTimeout(checkForReconnection, 500);
+    }
 });
 
 socket.on('gameCreated', ({ gameCode, game }) => {
@@ -154,6 +173,7 @@ socket.on('playerLeft', ({ playerName, game }) => {
 socket.on('gameStarted', (game) => {
     localState.game = game;
     showScreen('game-screen');
+    initGameCanvas();
     drawGameBoard();
     updateGameDisplay();
     if (game.phase === 'initial-placement') {
@@ -231,6 +251,15 @@ function showScreen(screenId) {
     });
     document.getElementById(screenId).classList.add('active');
     localState.currentScreen = screenId;
+    
+    // Initialize canvases when screens are shown
+    if (screenId === 'map-builder') {
+        // Reset zoom/pan for builder
+        localState.canvasOffset = { x: 0, y: 0 };
+        localState.canvasZoom = 1.0;
+        initMapBuilderCanvas();
+        drawMapBuilder();
+    }
 }
 
 function showMessage(text, duration = 3000) {
@@ -242,6 +271,26 @@ function showMessage(text, duration = 3000) {
     }, duration);
 }
 
+// ===== LOCALSTORAGE HELPERS =====
+
+function savePlayerName(name) {
+    localStorage.setItem('catanPlayerName', name);
+}
+
+function loadPlayerName() {
+    return localStorage.getItem('catanPlayerName') || '';
+}
+
+function loadPlayerNameIntoForms() {
+    const savedName = loadPlayerName();
+    if (savedName) {
+        const hostNameInput = document.getElementById('host-name');
+        const joinNameInput = document.getElementById('join-name');
+        if (hostNameInput) hostNameInput.value = savedName;
+        if (joinNameInput) joinNameInput.value = savedName;
+    }
+}
+
 // ===== MAIN MENU FUNCTIONS =====
 
 function createGame() {
@@ -250,6 +299,9 @@ function createGame() {
         showMessage('❌ Please enter your name');
         return;
     }
+
+    // Save player name to localStorage
+    savePlayerName(playerName);
 
     const settings = {
         maxPlayers: parseInt(document.getElementById('max-players').value),
@@ -294,6 +346,9 @@ function joinGame() {
         showMessage('❌ Please enter a valid 6-digit game code');
         return;
     }
+    
+    // Save player name to localStorage
+    savePlayerName(playerName);
 
     localState.playerName = playerName;
     socket.emit('joinGame', { playerName, gameCode });
@@ -309,7 +364,25 @@ function showLobby() {
 function updateLobbyDisplay() {
     if (!localState.game) return;
 
-    document.getElementById('lobby-code').textContent = localState.game.code;
+    const codeElement = document.getElementById('lobby-code');
+    codeElement.textContent = localState.game.code;
+    codeElement.style.cursor = 'pointer';
+    codeElement.title = 'Click to copy';
+    codeElement.onclick = () => {
+        navigator.clipboard.writeText(localState.game.code).then(() => {
+            showMessage('📋 Game code copied to clipboard!');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = localState.game.code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showMessage('📋 Game code copied to clipboard!');
+        });
+    };
+    
     document.getElementById('lobby-host').textContent = localState.game.host;
     document.getElementById('player-count').textContent = localState.game.players.length;
     document.getElementById('max-player-count').textContent = localState.game.settings.maxPlayers;
@@ -456,12 +529,61 @@ function clearMap() {
     showMessage('🗑️ Map cleared');
 }
 
+function initMapBuilderCanvas() {
+    const canvas = document.getElementById('builder-canvas');
+    if (!canvas) return;
+    
+    // Mouse wheel zoom
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        localState.canvasZoom = Math.max(0.3, Math.min(3, localState.canvasZoom * delta));
+        drawMapBuilder();
+    });
+    
+    // Note: We'll keep the builder simpler - pan with right-click
+    let isPanning = false;
+    
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 2) { // Right click
+            e.preventDefault();
+            isPanning = true;
+            localState.lastMousePos = { x: e.clientX, y: e.clientY };
+            canvas.style.cursor = 'grabbing';
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (isPanning) {
+            const dx = e.clientX - localState.lastMousePos.x;
+            const dy = e.clientY - localState.lastMousePos.y;
+            localState.canvasOffset.x += dx;
+            localState.canvasOffset.y += dy;
+            localState.lastMousePos = { x: e.clientX, y: e.clientY };
+            drawMapBuilder();
+        }
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        isPanning = false;
+        canvas.style.cursor = 'default';
+    });
+    
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // Prevent context menu
+    });
+}
+
 function drawMapBuilder() {
     const canvas = document.getElementById('builder-canvas');
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(localState.canvasOffset.x, localState.canvasOffset.y);
+    ctx.scale(localState.canvasZoom, localState.canvasZoom);
 
     const hexSize = 40;
     const centerX = canvas.width / 2;
@@ -473,6 +595,8 @@ function drawMapBuilder() {
             drawHexTile(ctx, tile, hexSize, centerX, centerY, true);
         });
     }
+
+    ctx.restore();
 
     // Setup click handler
     canvas.onclick = handleBuilderClick;
@@ -546,12 +670,113 @@ function handleBuilderClick(event) {
 
 // ===== GAME BOARD RENDERING =====
 
+function initGameCanvas() {
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) return;
+    
+    // Mouse wheel zoom
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        localState.canvasZoom = Math.max(0.3, Math.min(3, localState.canvasZoom * delta));
+        drawGameBoard();
+    });
+    
+    // Mouse drag for panning
+    canvas.addEventListener('mousedown', (e) => {
+        if (!buildModeState) {
+            localState.isDragging = true;
+            localState.lastMousePos = { x: e.clientX, y: e.clientY };
+            canvas.style.cursor = 'grabbing';
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (localState.isDragging && !buildModeState) {
+            const dx = e.clientX - localState.lastMousePos.x;
+            const dy = e.clientY - localState.lastMousePos.y;
+            localState.canvasOffset.x += dx;
+            localState.canvasOffset.y += dy;
+            localState.lastMousePos = { x: e.clientX, y: e.clientY };
+            drawGameBoard();
+        }
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        localState.isDragging = false;
+        if (!buildModeState) {
+            canvas.style.cursor = 'default';
+        }
+    });
+    
+    canvas.addEventListener('mouseleave', () => {
+        localState.isDragging = false;
+        if (!buildModeState) {
+            canvas.style.cursor = 'default';
+        }
+    });
+    
+    // Touch support for mobile
+    let lastTouchDist = null;
+    
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+        } else if (e.touches.length === 1 && !buildModeState) {
+            localState.isDragging = true;
+            localState.lastMousePos = { 
+                x: e.touches[0].clientX, 
+                y: e.touches[0].clientY 
+            };
+        }
+    });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (lastTouchDist) {
+                const delta = dist / lastTouchDist;
+                localState.canvasZoom = Math.max(0.3, Math.min(3, localState.canvasZoom * delta));
+                drawGameBoard();
+            }
+            lastTouchDist = dist;
+        } else if (e.touches.length === 1 && localState.isDragging) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - localState.lastMousePos.x;
+            const dy = e.touches[0].clientY - localState.lastMousePos.y;
+            localState.canvasOffset.x += dx;
+            localState.canvasOffset.y += dy;
+            localState.lastMousePos = { 
+                x: e.touches[0].clientX, 
+                y: e.touches[0].clientY 
+            };
+            drawGameBoard();
+        }
+    });
+    
+    canvas.addEventListener('touchend', () => {
+        localState.isDragging = false;
+        lastTouchDist = null;
+    });
+}
+
 function drawGameBoard() {
     const canvas = document.getElementById('game-canvas');
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(localState.canvasOffset.x, localState.canvasOffset.y);
+    ctx.scale(localState.canvasZoom, localState.canvasZoom);
 
     const hexSize = 50;
     const centerX = canvas.width / 2;
@@ -611,6 +836,8 @@ function drawGameBoard() {
             drawShipPreview(ctx, buildModeState.previewLocation.edge, color, centerX, centerY, hexSize);
         }
     }
+    
+    ctx.restore();
 }
 
 function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
@@ -1284,6 +1511,9 @@ function playDevelopmentCard(index) {
 
 window.onload = function() {
     console.log('🏝️ Catan Online - Studio Ghibli Edition loaded!');
+    
+    // Load saved player name into forms
+    loadPlayerNameIntoForms();
     
     // Initialize map builder canvas if on that screen
     const builderCanvas = document.getElementById('builder-canvas');
