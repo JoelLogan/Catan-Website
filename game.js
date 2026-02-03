@@ -655,7 +655,7 @@ function endTurn() {
         (gameState.game.currentPlayerIndex + 1) % gameState.game.players.length;
     gameState.game.phase = 'roll';
     updateGameDisplay();
-    showMessage('Next player\'s turn');
+    showMessage("Next player's turn");
 }
 
 function startBuildMode(type) {
@@ -893,7 +893,7 @@ function initializeTradeDialog() {
     });
 }
 
-function switchTradeTab(tab) {
+function switchTradeTab(tab, event) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.trade-tab-content').forEach(content => content.classList.remove('active'));
     

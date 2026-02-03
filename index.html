@@ -212,9 +212,9 @@
                 <span class="close" onclick="closeTradeDialog()">&times;</span>
                 <h2>Trade</h2>
                 <div class="trade-tabs">
-                    <button class="tab-btn active" onclick="switchTradeTab('player')">Player Trade</button>
-                    <button class="tab-btn" onclick="switchTradeTab('bank')">Bank Trade</button>
-                    <button class="tab-btn" onclick="switchTradeTab('port')">Port Trade</button>
+                    <button class="tab-btn active" onclick="switchTradeTab('player', event)">Player Trade</button>
+                    <button class="tab-btn" onclick="switchTradeTab('bank', event)">Bank Trade</button>
+                    <button class="tab-btn" onclick="switchTradeTab('port', event)">Port Trade</button>
                 </div>
                 <div id="player-trade-tab" class="trade-tab-content active">
                     <h3>Trade with Player</h3>
