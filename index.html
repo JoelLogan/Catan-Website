@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catan Online</title>
+    <title>Catan Online - Studio Ghibli Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div id="app">
@@ -111,42 +115,33 @@
         <!-- Map Builder Screen -->
         <div id="map-builder" class="screen">
             <div class="builder-container">
-                <h2>Map Builder</h2>
+                <h2>🗺️ Map Builder</h2>
+                <p class="builder-description">Create your island layout! Place water, land placeholders, and ports. Land tiles will be randomly assigned when the game starts.</p>
                 <div class="builder-controls">
                     <div class="tile-selector">
-                        <h3>Tiles</h3>
-                        <button onclick="selectTile('wood')">Wood</button>
-                        <button onclick="selectTile('brick')">Brick</button>
-                        <button onclick="selectTile('sheep')">Sheep</button>
-                        <button onclick="selectTile('wheat')">Wheat</button>
-                        <button onclick="selectTile('ore')">Ore</button>
-                        <button onclick="selectTile('desert')">Desert</button>
-                        <button onclick="selectTile('water')">Water</button>
-                        <button onclick="selectTile('gold')">Gold</button>
+                        <h3>🏝️ Tiles</h3>
+                        <button onclick="selectTile('water')" class="tile-btn water-btn">🌊 Water</button>
+                        <button onclick="selectTile('land-placeholder')" class="tile-btn land-btn">🏞️ Land (Random)</button>
                     </div>
-                    <div class="number-selector">
-                        <h3>Numbers</h3>
-                        <button onclick="selectNumber(2)">2</button>
-                        <button onclick="selectNumber(3)">3</button>
-                        <button onclick="selectNumber(4)">4</button>
-                        <button onclick="selectNumber(5)">5</button>
-                        <button onclick="selectNumber(6)">6</button>
-                        <button onclick="selectNumber(8)">8</button>
-                        <button onclick="selectNumber(9)">9</button>
-                        <button onclick="selectNumber(10)">10</button>
-                        <button onclick="selectNumber(11)">11</button>
-                        <button onclick="selectNumber(12)">12</button>
+                    <div class="port-selector">
+                        <h3>⚓ Ports</h3>
+                        <button onclick="selectPort('3:1')" class="port-btn">3:1 Generic</button>
+                        <button onclick="selectPort('wood')" class="port-btn">2:1 Wood</button>
+                        <button onclick="selectPort('brick')" class="port-btn">2:1 Brick</button>
+                        <button onclick="selectPort('sheep')" class="port-btn">2:1 Sheep</button>
+                        <button onclick="selectPort('wheat')" class="port-btn">2:1 Wheat</button>
+                        <button onclick="selectPort('ore')" class="port-btn">2:1 Ore</button>
                     </div>
                     <div class="map-actions">
-                        <button onclick="saveMap()">Save Map</button>
-                        <button onclick="loadMap()">Load Map</button>
-                        <button onclick="clearMap()">Clear Map</button>
-                        <button onclick="randomizeMap()">Randomize</button>
+                        <button onclick="saveMap()">💾 Save Map</button>
+                        <button onclick="loadMap()">📂 Load Map</button>
+                        <button onclick="clearMap()">🗑️ Clear Map</button>
+                        <button onclick="generateDefaultMapTemplate()">✨ Default Layout</button>
                     </div>
                 </div>
                 <canvas id="builder-canvas" width="800" height="600"></canvas>
                 <div class="menu-buttons">
-                    <button onclick="showScreen('main-menu')">Back to Menu</button>
+                    <button onclick="showScreen('main-menu')">🏠 Back to Menu</button>
                 </div>
             </div>
         </div>
@@ -267,6 +262,6 @@
         <div id="message-box" class="message-box"></div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="client.js"></script>
 </body>
 </html>

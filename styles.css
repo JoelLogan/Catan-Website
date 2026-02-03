@@ -5,18 +5,42 @@
 }
 
 body {
-    font-family: 'Arial', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Nunito', 'Patrick Hand', sans-serif;
+    background: linear-gradient(135deg, #87CEEB 0%, #98D8C8 50%, #F7DC6F 100%);
+    background-attachment: fixed;
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Studio Ghibli clouds animation */
+body::before {
+    content: '';
+    position: fixed;
+    width: 200%;
+    height: 200%;
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 60% 70%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.25) 0%, transparent 50%);
+    animation: float-clouds 60s infinite linear;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes float-clouds {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-50%, 0); }
 }
 
 #app {
     width: 100%;
     height: 100vh;
     position: relative;
+    z-index: 1;
 }
 
 .screen {
@@ -32,31 +56,46 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    animation: fadeIn 0.5s ease-in;
 }
 
-.menu-container {
-    background: white;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.menu-container, .lobby-container, .builder-container {
+    background: rgba(255, 255, 255, 0.95);
     padding: 40px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-radius: 25px;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
     max-width: 500px;
     width: 90%;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    position: relative;
 }
 
-.lobby-container {
-    background: white;
-    padding: 40px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    max-width: 600px;
-    width: 90%;
+.menu-container::before, .lobby-container::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, #FFD700 30%, transparent 70%);
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: twinkle 3s infinite;
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 0.9; transform: scale(1.1); }
 }
 
 .builder-container {
-    background: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     max-width: 95%;
     width: 95%;
     height: 90vh;
@@ -64,14 +103,19 @@ body {
 }
 
 h1, h2, h3 {
-    color: #333;
+    color: #2c5f2d;
     margin-bottom: 20px;
     text-align: center;
+    font-weight: 700;
+    text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
 }
 
 h1 {
-    font-size: 2.5em;
-    color: #667eea;
+    font-size: 2.8em;
+    font-family: 'Patrick Hand', cursive;
+    color: #4a7c59;
+    text-shadow: 3px 3px 0px rgba(255, 255, 255, 0.8);
+    letter-spacing: 2px;
 }
 
 .form-group {
@@ -82,30 +126,52 @@ h1 {
     display: block;
     margin-bottom: 8px;
     color: #555;
-    font-weight: bold;
+    font-weight: 600;
+    font-size: 0.95em;
 }
 
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group select {
     width: 100%;
-    padding: 10px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
+    padding: 12px 15px;
+    border: 2px solid #98D8C8;
+    border-radius: 12px;
     font-size: 16px;
+    font-family: 'Nunito', sans-serif;
+    background: rgba(255, 255, 255, 0.9);
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #4a7c59;
+    box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
+    transform: translateY(-2px);
 }
 
 .checkbox-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
 .checkbox-group label {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-weight: normal;
+    padding: 10px;
+    background: rgba(152, 216, 200, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.checkbox-group label:hover {
+    background: rgba(152, 216, 200, 0.2);
+    transform: translateX(5px);
 }
 
 .pieces-config {
@@ -119,6 +185,9 @@ h1 {
     justify-content: space-between;
     align-items: center;
     font-weight: normal;
+    padding: 8px 12px;
+    background: rgba(247, 220, 111, 0.1);
+    border-radius: 8px;
 }
 
 .pieces-config input {
@@ -128,29 +197,55 @@ h1 {
 .menu-buttons {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 20px;
+    gap: 12px;
+    margin-top: 25px;
 }
 
 button {
-    padding: 12px 24px;
+    padding: 14px 28px;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: 600;
+    font-family: 'Nunito', sans-serif;
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #5fa86f 0%, #4a7c59 100%);
     border: none;
-    border-radius: 8px;
+    border-radius: 15px;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.3s ease;
+    box-shadow: 
+        0 4px 12px rgba(74, 124, 89, 0.3),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+button:hover::before {
+    width: 300px;
+    height: 300px;
 }
 
 button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    transform: translateY(-3px);
+    box-shadow: 
+        0 6px 20px rgba(74, 124, 89, 0.4),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.1);
 }
 
 button:active {
-    transform: translateY(0);
+    transform: translateY(-1px);
 }
 
 button:disabled {
@@ -160,20 +255,25 @@ button:disabled {
 }
 
 .code {
-    font-family: 'Courier New', monospace;
-    font-size: 1.5em;
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.8em;
     font-weight: bold;
-    color: #667eea;
-    background: #f0f0f0;
-    padding: 5px 15px;
-    border-radius: 5px;
+    color: #4a7c59;
+    background: linear-gradient(135deg, #FFE4B5 0%, #FFD700 100%);
+    padding: 8px 20px;
+    border-radius: 12px;
+    box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    display: inline-block;
 }
 
 .lobby-info {
-    background: #f8f9fa;
+    background: linear-gradient(135deg, rgba(152, 216, 200, 0.2) 0%, rgba(135, 206, 235, 0.2) 100%);
     padding: 20px;
-    border-radius: 10px;
+    border-radius: 15px;
     margin-bottom: 20px;
+    border: 2px solid rgba(152, 216, 200, 0.3);
 }
 
 .players-list {
@@ -188,16 +288,34 @@ button:disabled {
 }
 
 .player-item {
-    background: #f0f0f0;
-    padding: 12px;
-    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(247, 220, 111, 0.2) 0%, rgba(255, 228, 181, 0.2) 100%);
+    padding: 12px 16px;
+    border-radius: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.player-item:hover {
+    transform: translateX(5px);
+    border-color: rgba(247, 220, 111, 0.5);
 }
 
 .player-item.host {
-    background: #ffe0b2;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 228, 181, 0.3) 100%);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.builder-description {
+    text-align: center;
+    color: #666;
+    margin-bottom: 20px;
+    font-style: italic;
+    padding: 15px;
+    background: rgba(152, 216, 200, 0.1);
+    border-radius: 10px;
 }
 
 /* Map Builder */
@@ -208,25 +326,40 @@ button:disabled {
     flex-wrap: wrap;
 }
 
-.tile-selector, .number-selector, .map-actions {
+.tile-selector, .port-selector, .map-actions {
     flex: 1;
     min-width: 200px;
+    background: rgba(255, 255, 255, 0.6);
+    padding: 15px;
+    border-radius: 15px;
+    border: 2px solid rgba(152, 216, 200, 0.3);
 }
 
-.tile-selector button,
-.number-selector button {
+.tile-btn, .port-btn {
     margin: 5px;
-    padding: 8px 16px;
+    padding: 10px 18px;
     font-size: 14px;
+    min-width: 120px;
 }
 
-#builder-canvas {
-    border: 2px solid #ddd;
-    border-radius: 10px;
-    background: #e8f4f8;
+.water-btn {
+    background: linear-gradient(135deg, #6ba8d8 0%, #4a88b8 100%);
+}
+
+.land-btn {
+    background: linear-gradient(135deg, #98D8C8 0%, #7ab8a8 100%);
+}
+
+#builder-canvas, #game-canvas {
+    border: 3px solid #98D8C8;
+    border-radius: 15px;
+    background: linear-gradient(135deg, #e8f4f8 0%, #d8e8f8 100%);
     display: block;
     margin: 0 auto;
     cursor: pointer;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 /* Game Screen */
@@ -562,4 +695,336 @@ button:disabled {
 
 .host-controls button {
     width: 100%;
+}
+
+/* Studio Ghibli Game Screen Enhancements */
+#game-screen.active {
+    display: block;
+}
+
+.game-container {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #e8f4f8 0%, #d8e8f8 100%);
+    overflow: hidden;
+}
+
+.game-header {
+    background: linear-gradient(135deg, #5fa86f 0%, #4a7c59 100%);
+    color: white;
+    padding: 18px 35px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.1em;
+}
+
+.game-info {
+    display: flex;
+    gap: 35px;
+}
+
+.game-layout {
+    display: flex;
+    height: calc(100vh - 76px);
+}
+
+.left-panel, .right-panel {
+    width: 270px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.center-panel {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background: linear-gradient(135deg, #87CEEB 0%, #98D8C8 50%);
+}
+
+.players-panel, .actions-panel, .resources-panel, .cards-panel {
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 18px;
+    border-radius: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 2px solid rgba(152, 216, 200, 0.3);
+}
+
+.players-panel h3, .actions-panel h3, .resources-panel h3, .cards-panel h3 {
+    font-size: 17px;
+    margin-bottom: 15px;
+    text-align: left;
+    color: #4a7c59;
+    font-weight: 700;
+}
+
+.actions-panel button {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 12px;
+    font-size: 14px;
+}
+
+#game-players {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.game-player-item {
+    background: linear-gradient(135deg, rgba(247, 220, 111, 0.15) 0%, rgba(255, 228, 181, 0.15) 100%);
+    padding: 12px;
+    border-radius: 10px;
+    border-left: 4px solid #4a7c59;
+    transition: all 0.3s ease;
+}
+
+.game-player-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.game-player-item.active {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 228, 181, 0.25) 100%);
+    border-left-color: #FFD700;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.player-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#player-resources {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.resource {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(152, 216, 200, 0.1);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.resource:hover {
+    background: rgba(152, 216, 200, 0.2);
+    transform: translateX(5px);
+}
+
+.resource img {
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.resource span {
+    font-weight: 700;
+    font-size: 19px;
+    color: #4a7c59;
+}
+
+.dice-display {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 25px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 25px 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    animation: diceRoll 0.6s ease-in-out;
+    border: 3px solid rgba(255, 215, 0, 0.5);
+}
+
+@keyframes diceRoll {
+    0%, 100% { transform: translateX(-50%) scale(1) rotate(0deg); }
+    25% { transform: translateX(-50%) scale(1.15) rotate(5deg); }
+    50% { transform: translateX(-50%) scale(1.25) rotate(-5deg); }
+    75% { transform: translateX(-50%) scale(1.15) rotate(3deg); }
+}
+
+.dice {
+    width: 70px;
+    height: 70px;
+    background: white;
+    border: 4px solid #4a7c59;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 36px;
+    font-weight: bold;
+    font-family: 'Patrick Hand', cursive;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: #4a7c59;
+}
+
+/* Modal Styles with Ghibli theme */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+    background: rgba(255, 255, 255, 0.98);
+    padding: 35px;
+    border-radius: 20px;
+    max-width: 650px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+    border: 3px solid rgba(152, 216, 200, 0.4);
+}
+
+.close {
+    position: absolute;
+    right: 25px;
+    top: 20px;
+    font-size: 32px;
+    font-weight: bold;
+    color: #4a7c59;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.close:hover {
+    color: #FFD700;
+    transform: scale(1.2) rotate(90deg);
+}
+
+.trade-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 25px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: rgba(152, 216, 200, 0.2);
+    color: #4a7c59;
+    font-weight: 600;
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, #5fa86f 0%, #4a7c59 100%);
+    color: white;
+}
+
+.trade-tab-content {
+    display: none;
+}
+
+.trade-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+.trade-section {
+    display: flex;
+    gap: 25px;
+    margin-bottom: 25px;
+}
+
+.trade-offer, .trade-receive {
+    flex: 1;
+    padding: 18px;
+    background: rgba(247, 220, 111, 0.1);
+    border-radius: 12px;
+    border: 2px solid rgba(247, 220, 111, 0.3);
+}
+
+/* Message Box with Ghibli theme */
+.message-box {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.98);
+    padding: 18px 35px;
+    border-radius: 15px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+    display: none;
+    z-index: 2000;
+    animation: slideUp 0.4s ease-out;
+    border: 3px solid rgba(255, 215, 0, 0.5);
+    font-weight: 600;
+    color: #4a7c59;
+    font-family: 'Nunito', sans-serif;
+}
+
+#dev-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dev-card {
+    background: linear-gradient(135deg, #fff3cd 0%, #FFE4B5 100%);
+    padding: 12px 15px;
+    border-radius: 10px;
+    border: 2px solid #FFD700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    color: #4a7c59;
+    text-transform: capitalize;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dev-card:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 6px 15px rgba(255, 215, 0, 0.4);
+}
+
+/* Host Controls with Ghibli theme */
+.host-controls {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 228, 181, 0.2) 100%);
+    padding: 25px;
+    border-radius: 15px;
+    margin-top: 25px;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.host-controls button {
+    width: 100%;
+}
+
+/* Whimsical loading animation */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.floating {
+    animation: float 3s ease-in-out infinite;
 }
