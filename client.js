@@ -564,7 +564,23 @@ function drawGameBoard() {
         });
     }
 
-    // Draw structures
+    // Draw roads first (under settlements)
+    if (localState.game && localState.game.players) {
+        localState.game.players.forEach(player => {
+            if (player.roads) {
+                player.roads.forEach(road => {
+                    drawRoad(ctx, road.edge, player.color, centerX, centerY, hexSize);
+                });
+            }
+            if (player.ships && localState.game.settings.expansions.seafarers) {
+                player.ships.forEach(ship => {
+                    drawShip(ctx, ship.edge, player.color, centerX, centerY, hexSize);
+                });
+            }
+        });
+    }
+
+    // Draw settlements and cities on top
     if (localState.game && localState.game.players) {
         localState.game.players.forEach(player => {
             if (player.settlements) {
@@ -577,17 +593,23 @@ function drawGameBoard() {
                     drawCity(ctx, city.vertex, player.color, centerX, centerY, hexSize);
                 });
             }
-            if (player.roads) {
-                player.roads.forEach(road => {
-                    drawRoad(ctx, road.edge, player.color, centerX, centerY, hexSize);
-                });
-            }
-            if (player.ships && localState.game.settings.expansions.seafarers) {
-                player.ships.forEach(ship => {
-                    drawShip(ctx, ship.edge, player.color, centerX, centerY, hexSize);
-                });
-            }
         });
+    }
+    
+    // Draw preview if in build mode
+    if (buildModeState && buildModeState.previewLocation) {
+        const localPlayer = localState.game.players.find(p => p.name === localState.playerName);
+        const color = localPlayer ? localPlayer.color : 'white';
+        
+        if (buildModeState.type === 'settlement') {
+            drawSettlementPreview(ctx, buildModeState.previewLocation.vertex, color, centerX, centerY, hexSize);
+        } else if (buildModeState.type === 'city') {
+            drawCityPreview(ctx, buildModeState.previewLocation.vertex, color, centerX, centerY, hexSize);
+        } else if (buildModeState.type === 'road') {
+            drawRoadPreview(ctx, buildModeState.previewLocation.edge, color, centerX, centerY, hexSize);
+        } else if (buildModeState.type === 'ship') {
+            drawShipPreview(ctx, buildModeState.previewLocation.edge, color, centerX, centerY, hexSize);
+        }
     }
 }
 
@@ -758,6 +780,112 @@ function drawShip(ctx, edge, color, centerX, centerY, hexSize) {
     ctx.stroke();
 }
 
+// Preview drawing functions
+function drawSettlementPreview(ctx, vertex, color, centerX, centerY, hexSize) {
+    if (!vertex) return;
+    const pos = vertexToPixel(vertex, hexSize);
+    const x = centerX + pos.x;
+    const y = centerY + pos.y;
+
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    
+    // Draw house shape
+    ctx.beginPath();
+    ctx.rect(x - 10, y - 5, 20, 15);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Draw roof
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y - 5);
+    ctx.lineTo(x, y - 15);
+    ctx.lineTo(x + 12, y - 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+function drawCityPreview(ctx, vertex, color, centerX, centerY, hexSize) {
+    if (!vertex) return;
+    const pos = vertexToPixel(vertex, hexSize);
+    const x = centerX + pos.x;
+    const y = centerY + pos.y;
+
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    
+    // Draw larger building with towers
+    ctx.beginPath();
+    ctx.rect(x - 15, y - 10, 30, 20);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.rect(x - 18, y - 15, 10, 10);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.rect(x + 8, y - 15, 10, 10);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+function drawRoadPreview(ctx, edge, color, centerX, centerY, hexSize) {
+    if (!edge) return;
+    const start = vertexToPixel(edge.start, hexSize);
+    const end = vertexToPixel(edge.end, hexSize);
+
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(centerX + start.x, centerY + start.y);
+    ctx.lineTo(centerX + end.x, centerY + end.y);
+    ctx.stroke();
+    
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawShipPreview(ctx, edge, color, centerX, centerY, hexSize) {
+    if (!edge) return;
+    const start = vertexToPixel(edge.start, hexSize);
+    const end = vertexToPixel(edge.end, hexSize);
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX + midX - 12, centerY + midY);
+    ctx.lineTo(centerX + midX + 12, centerY + midY);
+    ctx.lineTo(centerX + midX, centerY + midY - 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
 function vertexToPixel(vertex, hexSize) {
     return { x: vertex.x * hexSize, y: vertex.y * hexSize };
 }
@@ -832,6 +960,7 @@ function updateActionButtons() {
     const currentPlayer = localState.game.players[localState.game.currentPlayerIndex];
     const isCurrentPlayer = currentPlayer.name === localState.playerName;
     const isSetup = localState.game.phase === 'initial-placement';
+    const resources = localState.game.localPlayer ? localState.game.localPlayer.resources : null;
 
     // Disable dice rolling during setup
     document.getElementById('roll-dice-btn').disabled = 
@@ -852,16 +981,34 @@ function updateActionButtons() {
         document.getElementById('trade-btn').disabled = true; // No trading during setup
         document.getElementById('dev-card-btn').disabled = true; // No dev cards during setup
     } else {
-        document.getElementById('build-settlement-btn').disabled = !isCurrentPlayer;
-        document.getElementById('build-city-btn').disabled = !isCurrentPlayer;
-        document.getElementById('build-road-btn').disabled = !isCurrentPlayer;
+        // Check resource requirements for each action
+        const canBuildSettlement = resources && 
+            resources.wood >= 1 && resources.brick >= 1 && 
+            resources.sheep >= 1 && resources.wheat >= 1;
+        const canBuildCity = resources && 
+            resources.wheat >= 2 && resources.ore >= 3;
+        const canBuildRoad = resources && 
+            resources.wood >= 1 && resources.brick >= 1;
+        const canBuildShip = resources && 
+            resources.wood >= 1 && resources.sheep >= 1;
+        const canBuyDevCard = resources && 
+            resources.sheep >= 1 && resources.wheat >= 1 && resources.ore >= 1;
+        
+        document.getElementById('build-settlement-btn').disabled = 
+            !isCurrentPlayer || !canBuildSettlement;
+        document.getElementById('build-city-btn').disabled = 
+            !isCurrentPlayer || !canBuildCity;
+        document.getElementById('build-road-btn').disabled = 
+            !isCurrentPlayer || !canBuildRoad;
         document.getElementById('trade-btn').disabled = !isCurrentPlayer;
-        document.getElementById('dev-card-btn').disabled = !isCurrentPlayer;
-    }
-    
-    if (localState.game.settings.expansions.seafarers) {
-        document.getElementById('build-ship-btn').style.display = 'block';
-        document.getElementById('build-ship-btn').disabled = !isCurrentPlayer || isSetup;
+        document.getElementById('dev-card-btn').disabled = 
+            !isCurrentPlayer || !canBuyDevCard;
+            
+        if (localState.game.settings.expansions.seafarers) {
+            document.getElementById('build-ship-btn').style.display = 'block';
+            document.getElementById('build-ship-btn').disabled = 
+                !isCurrentPlayer || !canBuildShip;
+        }
     }
 }
 
@@ -885,30 +1032,134 @@ function endTurn() {
     socket.emit('endTurn', { gameCode: localState.gameCode });
 }
 
+let buildModeState = null;
+
 function startBuildMode(type) {
     showMessage(`🏗️ Click on the board to place ${type}`);
     
     const canvas = document.getElementById('game-canvas');
+    buildModeState = { type, previewLocation: null };
+    
+    // Remove old handlers
+    canvas.onmousemove = (event) => handleBuildModeMouseMove(event, type);
     canvas.onclick = (event) => handleGameBoardClick(event, type);
+    canvas.onmouseleave = () => {
+        buildModeState.previewLocation = null;
+        drawGameBoard();
+    };
 }
 
-function handleGameBoardClick(event, type) {
+function handleBuildModeMouseMove(event, type) {
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-
-    // Convert to game coordinates
-    const location = {
-        vertex: { x: (x - 450) / 50, y: (y - 350) / 50 }
-    };
-
-    if (type === 'road' || type === 'ship') {
-        location.edge = {
-            start: { x: (x - 450) / 50, y: (y - 350) / 50 },
-            end: { x: (x - 450) / 50 + 1, y: (y - 350) / 50 }
-        };
+    
+    const hexSize = 50;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    if (type === 'settlement' || type === 'city') {
+        const vertex = pixelToNearestVertex(x, y, centerX, centerY, hexSize);
+        buildModeState.previewLocation = { vertex };
+    } else if (type === 'road' || type === 'ship') {
+        const edge = pixelToNearestEdge(x, y, centerX, centerY, hexSize);
+        buildModeState.previewLocation = { edge };
     }
+    
+    drawGameBoard();
+}
+
+function pixelToNearestVertex(px, py, centerX, centerY, hexSize) {
+    const relX = px - centerX;
+    const relY = py - centerY;
+    
+    // Get all potential vertices from nearby tiles
+    const tiles = localState.game.board.tiles;
+    let closestVertex = null;
+    let minDist = Infinity;
+    
+    tiles.forEach(tile => {
+        const vertices = getHexVertices(tile.x, tile.y, hexSize);
+        vertices.forEach(v => {
+            const vPixel = vertexToPixel(v, hexSize);
+            const dist = Math.sqrt(
+                Math.pow(vPixel.x - relX, 2) + 
+                Math.pow(vPixel.y - relY, 2)
+            );
+            if (dist < minDist && dist < hexSize * 0.5) {
+                minDist = dist;
+                closestVertex = v;
+            }
+        });
+    });
+    
+    return closestVertex;
+}
+
+function pixelToNearestEdge(px, py, centerX, centerY, hexSize) {
+    const relX = px - centerX;
+    const relY = py - centerY;
+    
+    const tiles = localState.game.board.tiles;
+    let closestEdge = null;
+    let minDist = Infinity;
+    
+    tiles.forEach(tile => {
+        const edges = getHexEdges(tile.x, tile.y, hexSize);
+        edges.forEach(edge => {
+            // Find midpoint of edge
+            const start = vertexToPixel(edge.start, hexSize);
+            const end = vertexToPixel(edge.end, hexSize);
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            
+            const dist = Math.sqrt(
+                Math.pow(midX - relX, 2) + 
+                Math.pow(midY - relY, 2)
+            );
+            if (dist < minDist && dist < hexSize * 0.4) {
+                minDist = dist;
+                closestEdge = edge;
+            }
+        });
+    });
+    
+    return closestEdge;
+}
+
+function getHexVertices(q, r, hexSize) {
+    const vertices = [];
+    for (let i = 0; i < 6; i++) {
+        const angleDeg = 60 * i;
+        const angleRad = Math.PI / 180 * angleDeg;
+        vertices.push({
+            x: q + Math.cos(angleRad),
+            y: r + Math.sin(angleRad)
+        });
+    }
+    return vertices;
+}
+
+function getHexEdges(q, r, hexSize) {
+    const vertices = getHexVertices(q, r, hexSize);
+    const edges = [];
+    for (let i = 0; i < 6; i++) {
+        edges.push({
+            start: vertices[i],
+            end: vertices[(i + 1) % 6]
+        });
+    }
+    return edges;
+}
+
+function handleGameBoardClick(event, type) {
+    if (!buildModeState || !buildModeState.previewLocation) {
+        showMessage('⚠️ Invalid location');
+        return;
+    }
+    
+    const location = buildModeState.previewLocation;
 
     // Check if we're in initial placement phase
     if (localState.game.phase === 'initial-placement') {
@@ -925,7 +1176,13 @@ function handleGameBoardClick(event, type) {
         });
     }
 
+    // Clean up
+    const canvas = event.target;
     canvas.onclick = null;
+    canvas.onmousemove = null;
+    canvas.onmouseleave = null;
+    buildModeState = null;
+    drawGameBoard();
 }
 
 function openTradeDialog() {

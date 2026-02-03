@@ -361,12 +361,24 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Place the structure
+            // Validate and place the structure
             if (type === 'settlement') {
+                const validation = validateSettlementPlacement(game, player, location.vertex, true);
+                if (!validation.valid) {
+                    socket.emit('error', { message: validation.reason });
+                    return;
+                }
+                
                 player.settlements.push(location);
                 player.victoryPoints++;
                 game.setupPhase.placementType = 'road';
             } else if (type === 'road') {
+                const validation = validateRoadPlacement(game, player, location.edge, true);
+                if (!validation.valid) {
+                    socket.emit('error', { message: validation.reason });
+                    return;
+                }
+                
                 player.roads.push(location);
                 
                 // Move to next player or next phase
@@ -471,7 +483,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            if (buildStructure(game, player, type, location)) {
+            const result = buildStructure(game, player, type, location);
+            if (result.success) {
                 io.to(gameCode).emit('structureBuilt', {
                     player: playerInfo.playerName,
                     type,
@@ -481,10 +494,11 @@ io.on('connection', (socket) => {
 
                 checkVictory(game, gameCode);
             } else {
-                socket.emit('error', { message: 'Cannot build there' });
+                socket.emit('error', { message: result.reason || 'Cannot build there' });
             }
         } catch (error) {
             console.error('Error building structure:', error);
+            socket.emit('error', { message: 'Failed to build structure' });
         }
     });
 
@@ -680,6 +694,167 @@ function isVertexOnTile(vertex, tile) {
     return distance < 1.5;
 }
 
+// Get all vertices that are exactly 1 edge away from a given vertex
+function getAdjacentVertices(vertex) {
+    const adjacent = [];
+    // In axial coordinates, adjacent vertices are at these offsets
+    const offsets = [
+        { x: 1, y: 0 }, { x: -1, y: 0 },
+        { x: 0, y: 1 }, { x: 0, y: -1 },
+        { x: 1, y: -1 }, { x: -1, y: 1 }
+    ];
+    
+    offsets.forEach(offset => {
+        adjacent.push({
+            x: vertex.x + offset.x,
+            y: vertex.y + offset.y
+        });
+    });
+    
+    return adjacent;
+}
+
+// Check if two vertices are exactly 1 edge apart
+function areVerticesAdjacent(v1, v2) {
+    const dx = Math.abs(v1.x - v2.x);
+    const dy = Math.abs(v1.y - v2.y);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return dist < 1.5 && dist > 0.1; // Adjacent vertices are ~1 unit apart
+}
+
+// Validate settlement placement according to Catan rules
+function validateSettlementPlacement(game, player, vertex, isInitialPlacement = false) {
+    // Check distance rule: no settlements within 2 edges
+    for (const p of game.players) {
+        for (const settlement of p.settlements) {
+            const dist = Math.sqrt(
+                Math.pow(settlement.vertex.x - vertex.x, 2) + 
+                Math.pow(settlement.vertex.y - vertex.y, 2)
+            );
+            // Settlements must be at least 2 edges apart (distance > 1.5)
+            if (dist < 1.6) {
+                return { valid: false, reason: 'Too close to another settlement (must be 2+ edges away)' };
+            }
+        }
+        
+        // Check cities too
+        for (const city of p.cities) {
+            const dist = Math.sqrt(
+                Math.pow(city.vertex.x - vertex.x, 2) + 
+                Math.pow(city.vertex.y - vertex.y, 2)
+            );
+            if (dist < 1.6) {
+                return { valid: false, reason: 'Too close to a city' };
+            }
+        }
+    }
+    
+    // During normal play, settlement must connect to a road
+    if (!isInitialPlacement) {
+        let hasConnectedRoad = false;
+        for (const road of player.roads) {
+            if (areVerticesAdjacent(road.edge.start, vertex) || 
+                areVerticesAdjacent(road.edge.end, vertex)) {
+                hasConnectedRoad = true;
+                break;
+            }
+        }
+        if (!hasConnectedRoad) {
+            return { valid: false, reason: 'Settlement must connect to your road' };
+        }
+    }
+    
+    // Check vertex is on the board (at least one tile adjacent)
+    let onBoard = false;
+    for (const tile of game.board.tiles) {
+        if (isVertexOnTile(vertex, tile)) {
+            onBoard = true;
+            break;
+        }
+    }
+    if (!onBoard) {
+        return { valid: false, reason: 'Invalid location' };
+    }
+    
+    return { valid: true };
+}
+
+// Validate road placement
+function validateRoadPlacement(game, player, edge, isInitialPlacement = false) {
+    // Check if road already exists at this location
+    for (const p of game.players) {
+        for (const road of p.roads) {
+            if (edgesMatch(road.edge, edge)) {
+                return { valid: false, reason: 'Road already exists here' };
+            }
+        }
+    }
+    
+    if (isInitialPlacement) {
+        // During setup, road must connect to the most recently placed settlement
+        if (player.settlements.length === 0) {
+            return { valid: false, reason: 'Place settlement first' };
+        }
+        const lastSettlement = player.settlements[player.settlements.length - 1];
+        if (!areVerticesAdjacent(edge.start, lastSettlement.vertex) && 
+            !areVerticesAdjacent(edge.end, lastSettlement.vertex)) {
+            return { valid: false, reason: 'Road must connect to your settlement' };
+        }
+    } else {
+        // During normal play, road must connect to player's existing road or settlement
+        let hasConnection = false;
+        
+        // Check connection to settlements
+        for (const settlement of player.settlements) {
+            if (areVerticesAdjacent(edge.start, settlement.vertex) || 
+                areVerticesAdjacent(edge.end, settlement.vertex)) {
+                hasConnection = true;
+                break;
+            }
+        }
+        
+        // Check connection to cities
+        if (!hasConnection) {
+            for (const city of player.cities) {
+                if (areVerticesAdjacent(edge.start, city.vertex) || 
+                    areVerticesAdjacent(edge.end, city.vertex)) {
+                    hasConnection = true;
+                    break;
+                }
+            }
+        }
+        
+        // Check connection to roads
+        if (!hasConnection) {
+            for (const road of player.roads) {
+                if (areVerticesAdjacent(road.edge.start, edge.start) ||
+                    areVerticesAdjacent(road.edge.start, edge.end) ||
+                    areVerticesAdjacent(road.edge.end, edge.start) ||
+                    areVerticesAdjacent(road.edge.end, edge.end)) {
+                    hasConnection = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!hasConnection) {
+            return { valid: false, reason: 'Road must connect to your network' };
+        }
+    }
+    
+    return { valid: true };
+}
+
+function edgesMatch(edge1, edge2) {
+    const e1s = edge1.start, e1e = edge1.end;
+    const e2s = edge2.start, e2e = edge2.end;
+    
+    const dist = (v1, v2) => Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.y - v2.y, 2));
+    
+    return (dist(e1s, e2s) < 0.1 && dist(e1e, e2e) < 0.1) ||
+           (dist(e1s, e2e) < 0.1 && dist(e1e, e2s) < 0.1);
+}
+
 function buildStructure(game, player, type, location) {
     const costs = {
         settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
@@ -689,12 +864,40 @@ function buildStructure(game, player, type, location) {
     };
 
     const cost = costs[type];
-    if (!cost) return false;
+    if (!cost) return { success: false, reason: 'Invalid structure type' };
 
     // Check if player has resources
     for (const [resource, amount] of Object.entries(cost)) {
         if (player.resources[resource] < amount) {
-            return false;
+            return { success: false, reason: `Not enough ${resource}` };
+        }
+    }
+
+    // Validate placement
+    if (type === 'settlement') {
+        const validation = validateSettlementPlacement(game, player, location.vertex, false);
+        if (!validation.valid) {
+            return { success: false, reason: validation.reason };
+        }
+    } else if (type === 'city') {
+        // Check if there's a settlement at this location
+        const settlementIndex = player.settlements.findIndex(
+            s => Math.abs(s.vertex.x - location.vertex.x) < 0.5 && 
+                 Math.abs(s.vertex.y - location.vertex.y) < 0.5
+        );
+        if (settlementIndex < 0) {
+            return { success: false, reason: 'No settlement to upgrade' };
+        }
+    } else if (type === 'road') {
+        const validation = validateRoadPlacement(game, player, location.edge, false);
+        if (!validation.valid) {
+            return { success: false, reason: validation.reason };
+        }
+    } else if (type === 'ship') {
+        // Similar validation for ships (on water edges)
+        const validation = validateRoadPlacement(game, player, location.edge, false);
+        if (!validation.valid) {
+            return { success: false, reason: validation.reason };
         }
     }
 
@@ -713,20 +916,16 @@ function buildStructure(game, player, type, location) {
             s => Math.abs(s.vertex.x - location.vertex.x) < 0.5 && 
                  Math.abs(s.vertex.y - location.vertex.y) < 0.5
         );
-        if (settlementIndex >= 0) {
-            player.settlements.splice(settlementIndex, 1);
-            player.cities.push(location);
-            player.victoryPoints++;
-        } else {
-            return false;
-        }
+        player.settlements.splice(settlementIndex, 1);
+        player.cities.push(location);
+        player.victoryPoints++;
     } else if (type === 'road') {
         player.roads.push(location);
     } else if (type === 'ship') {
         player.ships.push(location);
     }
 
-    return true;
+    return { success: true };
 }
 
 function checkVictory(game, gameCode) {
