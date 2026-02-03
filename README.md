@@ -1,139 +1,219 @@
-# Catan Online - Web-Based Board Game
+# Catan Online - Studio Ghibli Edition 🏝️
 
-A fully-featured, browser-based implementation of the popular board game Catan, supporting 2-8 players with customizable settings, expansions, and a map builder.
+A beautiful, server-based multiplayer implementation of the board game Catan, featuring a whimsical Studio Ghibli-inspired aesthetic and real-time multiplayer gameplay.
 
-## Features
+## ✨ Features
 
-### 🎮 Core Gameplay
-- **2-8 Player Support**: Flexible player count from 2 to 8 players
-- **Hexagonal Board**: Beautiful HTML5 Canvas rendering of the game board
-- **Resource Management**: Full implementation of all 5 resource types (Wood, Brick, Sheep, Wheat, Ore)
-- **Building System**: Place settlements, cities, roads, and ships
-- **Dice Rolling**: Dynamic dice rolling with automatic resource distribution
-- **Development Cards**: Complete card system including Knights, Victory Points, Road Building, Year of Plenty, and Monopoly
-- **Victory Tracking**: Customizable victory point requirements (5-20 points)
+### 🎮 True Multiplayer Experience
+- **Real-time multiplayer** via Socket.IO
+- **Working join codes** - Share 6-digit codes to invite friends
+- **2-8 player support** with live lobby updates
+- **Server-side validation** - No cheating possible!
+- **Synchronized game state** across all connected players
 
-### 🌊 Expansions
-- **Seafarers**: Build ships, explore water tiles, and discover new territories
-- **Cities & Knights**: Enhanced gameplay with knight pieces and additional mechanics
+### 🎨 Studio Ghibli Aesthetic
+- **Hand-drawn tile images** - Beautiful SVG artwork for all resources
+- **Whimsical UI design** - Soft pastels, floating clouds, glowing sun
+- **Smooth animations** - Button ripples, dice rolls, screen transitions
+- **Custom fonts** - Patrick Hand for headers, Nunito for body
+- **Nature-inspired palette** - Sky blues, forest greens, golden yellows
 
-### 🎯 Lobby System
-- **Join Codes**: Share 6-digit codes to invite friends
-- **Host Controls**: Complete control over game settings before starting
-- **Player Management**: See all players in the lobby with color coding
+### 🗺️ Server-Side Map Builder
+- **Restricted tile placement** - Only water, land placeholders, and ports
+- **Server randomization** - Resources assigned when game starts
+- **Save/Load functionality** - Store custom map templates on server
+- **Default layouts** - Quick start with standard Catan setup
 
-### 🗺️ Map Builder
-- **Custom Maps**: Create your own board layouts
-- **Save/Load**: Persistent map storage using browser localStorage
-- **Randomizer**: Generate random maps on demand
-- **Tile Selection**: Choose from Wood, Brick, Sheep, Wheat, Ore, Desert, Water, and Gold tiles
-- **Number Placement**: Assign production numbers to tiles
+### 🏗️ Complete Game Features
+- Hexagonal board with resource tiles
+- Dice rolling with resource distribution
+- Building settlements, cities, roads, and ships
+- Development cards system
+- Three-way trading (player, bank, port)
+- Victory points tracking
+- Expansions: Seafarers & Cities & Knights
+- Customizable game pieces per player
+- Host-controlled match settings
 
-### 🤝 Trading System
-- **Player Trading**: Propose trades with other players
-- **Bank Trading**: Standard 4:1 trades with the bank
-- **Port Trading**: Special 2:1 or 3:1 trades when you control ports
+## 🚀 Quick Start
 
-### ⚙️ Customization
-- **Game Pieces**: Configure the number of each piece type per player:
-  - Settlements (1-10)
-  - Cities (1-10)
-  - Roads (1-30)
-  - Ships (0-30)
-  - Knights (0-10)
+### Installation
 
-## How to Play
+```bash
+# Clone the repository
+git clone https://github.com/JoelLogan/Catan-Website.git
+cd Catan-Website
 
-### Starting a Game
+# Install dependencies
+npm install
 
-1. **Open the Game**
-   - Open `index.html` in any modern web browser
-   - No server or installation required!
+# Start the server
+npm start
+```
 
-2. **Create a Game**
+The server will start on port 3000. Visit `http://localhost:3000` in your browser.
+
+### Playing the Game
+
+1. **Host Creates Game**
    - Click "Create Game"
-   - Enter your player name
-   - Configure settings:
-     - Max players (2-8)
-     - Victory points to win (5-20)
-     - Expansions (Seafarers, Cities & Knights)
-     - Game pieces per player
-     - Map selection
-   - Click "Create Game" to generate a 6-digit join code
+   - Enter your name and configure settings
+   - Select expansions and customize game pieces
+   - Click "Create Game" to get a 6-digit join code
 
-3. **Join a Game**
+2. **Players Join**
    - Click "Join Game"
-   - Enter your player name
-   - Enter the 6-digit game code
+   - Enter name and the host's 6-digit code
    - Click "Join Game"
 
-4. **Start Playing**
-   - Host clicks "Start Game" when all players have joined (minimum 2 players)
-   - Game begins in setup phase
+3. **Start Playing**
+   - Host clicks "Start Game" when ready
+   - Map is randomized server-side
+   - Take turns building and trading to victory!
 
-### Gameplay
+## 🏗️ Architecture
 
-1. **Setup Phase**
-   - Players place initial settlements and roads
-   - Click "Build Settlement" and click on the board
+### Server-Side (`server.js`)
+- **Express.js** web server
+- **Socket.IO** for real-time communication
+- Game session management
+- Map randomization algorithm
+- Turn validation and enforcement
+- Resource distribution logic
+- Building and trading validation
 
-2. **Main Game**
-   - **Roll Dice**: Click to roll and distribute resources
-   - **Build**: Place settlements, cities, roads, or ships
-   - **Trade**: Open trade dialog to trade with players, bank, or ports
-   - **Buy Dev Card**: Purchase development cards with resources
-   - **End Turn**: Pass to the next player
+### Client-Side (`client.js`)
+- Socket.IO client
+- Real-time event handling
+- Canvas-based board rendering
+- Local UI state management
+- Optimistic updates with server confirmation
 
-3. **Winning**
-   - First player to reach the victory point target wins!
+### Visual Assets (`public/images/tiles/`)
+- Hand-drawn SVG tiles for each resource type:
+  - 🌲 Wood (forest)
+  - 🧱 Brick (clay)
+  - 🐑 Sheep (pasture)
+  - 🌾 Wheat (fields)
+  - ⛰️ Ore (mountains)
+  - 🏜️ Desert (sand)
+  - 🌊 Water (ocean)
+  - ❓ Land Placeholder (for randomization)
 
-## Building Costs
+## 🎯 Map Builder Usage
 
+The map builder is designed for creating island layouts:
+
+1. **Place Tiles**
+   - 🌊 **Water** - Ocean tiles around the island
+   - 🏞️ **Land Placeholder** - Will become random resources when game starts
+
+2. **Add Ports** ⚓
+   - 3:1 Generic ports
+   - 2:1 Resource-specific ports (Wood, Brick, Sheep, Wheat, Ore)
+
+3. **Save Your Map** 💾
+   - Maps are stored server-side
+   - Load them for future games
+
+**Note:** You cannot place specific resources in the builder. All land tiles are randomized by the server when the game starts, ensuring fair gameplay!
+
+## 🎨 Design Philosophy
+
+Inspired by Studio Ghibli films, the game features:
+- **Natural color gradients** - Sky to field transitions
+- **Soft, rounded shapes** - Friendly and inviting
+- **Whimsical details** - Floating clouds, glowing sun, hand-drawn tiles
+- **Smooth animations** - Everything feels alive and responsive
+- **Pastel palette** - Easy on the eyes, magical atmosphere
+
+## 🔧 Technical Details
+
+### Dependencies
+- `express` ^4.18.2 - Web server framework
+- `socket.io` ^4.6.1 - Real-time bidirectional communication
+
+### Port Configuration
+Default port: 3000 (configurable via PORT environment variable)
+
+### Game State Storage
+- In-memory game sessions (resets on server restart)
+- Map templates stored server-side
+- Player connections tracked per session
+
+### Security Features
+- All game actions validated server-side
+- Turn enforcement
+- Resource count verification
+- Building placement validation
+- No client-side game state manipulation
+
+## 🎮 Game Rules Implemented
+
+### Building Costs
 - **Settlement**: 1 Wood, 1 Brick, 1 Sheep, 1 Wheat
-- **City**: 2 Wheat, 3 Ore (upgrades a settlement)
+- **City**: 2 Wheat, 3 Ore (upgrades settlement)
 - **Road**: 1 Wood, 1 Brick
-- **Ship**: 1 Wood, 1 Sheep (Seafarers only)
+- **Ship**: 1 Wood, 1 Sheep (Seafarers expansion)
 - **Development Card**: 1 Sheep, 1 Wheat, 1 Ore
 
-## Map Builder
+### Victory Points
+- Settlement: 1 VP
+- City: 2 VP (1 additional from settlement)
+- Victory Point cards
+- Longest Road (2 VP)
+- Largest Army (2 VP)
 
-1. Click "Map Builder" from the main menu
-2. Select a tile type (Wood, Brick, Sheep, etc.)
-3. Select a production number (2-12, excluding 7)
-4. Click on hexagons to place tiles
-5. Click "Save Map" to save your creation
-6. Click "Load Map" to load previously saved maps
-7. Click "Randomize" to generate a random map
-8. Click "Clear Map" to start over
+### Trading
+- **Player-to-Player**: Propose any trade
+- **Bank Trade**: 4:1 ratio (4 of one resource for 1 of another)
+- **Port Trade**: 3:1 or 2:1 (depends on port type)
 
-## Technical Details
+## 🌟 What's Different from Standard Catan?
 
-- **Technologies**: HTML5, CSS3, JavaScript (ES6+)
-- **Canvas API**: For rendering the hexagonal game board
-- **LocalStorage**: For saving custom maps
-- **No Backend Required**: Fully client-side implementation
+This implementation is fully digital with several enhancements:
+- **Server-side fairness** - No manual shuffling or cheating
+- **Instant resource distribution** - No counting needed
+- **Automatic validation** - Can't build where you shouldn't
+- **Real-time multiplayer** - Play with friends anywhere
+- **Custom map templates** - Create unique island layouts
+- **Flexible player counts** - 2-8 players supported
 
-## Browser Compatibility
+## 📱 Browser Compatibility
 
-Works in all modern browsers:
+Tested and working on:
 - Chrome 90+
 - Firefox 88+
 - Safari 14+
 - Edge 90+
 
-## Future Enhancements
+Requires modern browser with:
+- HTML5 Canvas support
+- WebSocket support
+- ES6 JavaScript
 
-Potential additions for multiplayer support:
-- WebSocket integration for real-time multiplayer
-- Online matchmaking
-- Player statistics and leaderboards
-- Additional expansions
-- Mobile-responsive design improvements
+## 🐛 Known Limitations
 
-## Credits
+- Game state resets on server restart (no persistence)
+- Single server instance (no horizontal scaling)
+- No spectator mode
+- No game replay feature
+- No AI players
 
-Inspired by the classic board game Settlers of Catan by Klaus Teuber.
+## 🤝 Contributing
 
-## License
+This is a fan-made educational project. Catan is a trademark of Catan GmbH.
 
-This is a fan-made project for educational purposes.
+## 📜 License
+
+MIT License - See LICENSE file for details
+
+## 🎭 Credits
+
+- Original board game by Klaus Teuber
+- Inspired by Studio Ghibli's art style
+- Built with love for board games and beautiful design
+
+---
+
+**Enjoy building your island empire!** 🏝️🎮✨
