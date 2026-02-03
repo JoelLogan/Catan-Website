@@ -544,17 +544,6 @@ function handleBuilderClick(event) {
     drawMapBuilder();
 }
 
-            if (existingIndex >= 0) {
-                localState.mapTemplate.tiles[existingIndex] = newTile;
-            } else {
-                localState.mapTemplate.tiles.push(newTile);
-            }
-        }
-
-        drawMapBuilder();
-    }
-}
-
 // ===== GAME BOARD RENDERING =====
 
 function drawGameBoard() {
