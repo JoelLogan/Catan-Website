@@ -12,15 +12,97 @@ let localState = {
     mapTemplate: null
 };
 
+// ===== RECONNECTION SYSTEM =====
+
+// Cookie helper functions
+function setCookie(name, value, days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = "expires=" + date.toUTCString();
+    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+}
+
+function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+}
+
+function deleteCookie(name) {
+    document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+}
+
+function saveGameSession(gameCode, playerName) {
+    setCookie('catanGameCode', gameCode, 1);
+    setCookie('catanPlayerName', playerName, 1);
+}
+
+function clearGameSession() {
+    deleteCookie('catanGameCode');
+    deleteCookie('catanPlayerName');
+}
+
+function checkForReconnection() {
+    const savedGameCode = getCookie('catanGameCode');
+    const savedPlayerName = getCookie('catanPlayerName');
+    
+    if (savedGameCode && savedPlayerName) {
+        showReconnectDialog(savedGameCode, savedPlayerName);
+    }
+}
+
+function showReconnectDialog(gameCode, playerName) {
+    const dialog = document.createElement('div');
+    dialog.className = 'modal';
+    dialog.style.display = 'flex';
+    dialog.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <h2>🎮 Rejoin Game?</h2>
+            <p>We found a previous game session:</p>
+            <p><strong>Player:</strong> ${playerName}</p>
+            <p><strong>Game Code:</strong> ${gameCode}</p>
+            <div class="modal-buttons">
+                <button id="rejoin-yes" style="background: linear-gradient(135deg, #5fa86f 0%, #4a7c59 100%);">
+                    ✓ Rejoin
+                </button>
+                <button id="rejoin-no" style="background: linear-gradient(135deg, #999 0%, #666 100%);">
+                    ✗ New Game
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    
+    document.getElementById('rejoin-yes').onclick = () => {
+        localState.playerName = playerName;
+        socket.emit('rejoinGame', { playerName, gameCode });
+        dialog.remove();
+    };
+    
+    document.getElementById('rejoin-no').onclick = () => {
+        clearGameSession();
+        dialog.remove();
+    };
+}
+
 // ===== SOCKET EVENT HANDLERS =====
 
 socket.on('connect', () => {
     console.log('🌟 Connected to Catan server!');
+    // Check for reconnection after connection
+    setTimeout(checkForReconnection, 500);
 });
 
 socket.on('gameCreated', ({ gameCode, game }) => {
     localState.gameCode = gameCode;
     localState.game = game;
+    saveGameSession(gameCode, localState.playerName);
     showLobby();
     showMessage('🎮 Game created! Share code: ' + gameCode);
 });
@@ -28,8 +110,30 @@ socket.on('gameCreated', ({ gameCode, game }) => {
 socket.on('gameJoined', ({ gameCode, game }) => {
     localState.gameCode = gameCode;
     localState.game = game;
+    saveGameSession(gameCode, localState.playerName);
     showLobby();
     showMessage('✨ Joined game successfully!');
+});
+
+socket.on('reconnected', ({ gameCode, game }) => {
+    localState.gameCode = gameCode;
+    localState.game = game;
+    saveGameSession(gameCode, localState.playerName);
+    
+    if (game.started) {
+        showScreen('game-screen');
+        drawGameBoard();
+        updateGameDisplay();
+        showMessage('🎮 Reconnected to game!');
+    } else {
+        showLobby();
+        showMessage('🎮 Reconnected to lobby!');
+    }
+});
+
+socket.on('reconnectFailed', ({ message }) => {
+    clearGameSession();
+    showMessage('❌ Could not reconnect: ' + message);
 });
 
 socket.on('lobbyUpdate', (game) => {
@@ -52,7 +156,18 @@ socket.on('gameStarted', (game) => {
     showScreen('game-screen');
     drawGameBoard();
     updateGameDisplay();
-    showMessage('🏝️ Game started! Let the adventure begin!');
+    if (game.phase === 'initial-placement') {
+        showMessage('🏠 Initial placement: Each player places a settlement and road');
+    } else {
+        showMessage('🏝️ Game started! Let the adventure begin!');
+    }
+});
+
+socket.on('initialPlaced', ({ player, type, location, game }) => {
+    localState.game = game;
+    drawGameBoard();
+    updateGameDisplay();
+    showMessage(`${player} placed a ${type}!`);
 });
 
 socket.on('diceRolled', ({ die1, die2, total, game }) => {
@@ -268,23 +383,36 @@ function generateDefaultMapTemplate() {
 function selectTile(type) {
     localState.selectedTile = type;
     localState.selectedPort = null;
+    localState.deleteMode = false;
     showMessage(`🏝️ Selected: ${type}`);
     
     // Update button styles
     document.querySelectorAll('.tile-btn').forEach(btn => btn.style.opacity = '0.7');
     document.querySelectorAll('.port-btn').forEach(btn => btn.style.opacity = '0.7');
-    event.target.style.opacity = '1';
+    if (event && event.target) event.target.style.opacity = '1';
 }
 
 function selectPort(type) {
     localState.selectedPort = type;
     localState.selectedTile = null;
+    localState.deleteMode = false;
     showMessage(`⚓ Selected port: ${type}`);
     
     // Update button styles
     document.querySelectorAll('.tile-btn').forEach(btn => btn.style.opacity = '0.7');
     document.querySelectorAll('.port-btn').forEach(btn => btn.style.opacity = '0.7');
-    event.target.style.opacity = '1';
+    if (event && event.target) event.target.style.opacity = '1';
+}
+
+function enableDeleteMode() {
+    localState.deleteMode = true;
+    localState.selectedTile = null;
+    localState.selectedPort = null;
+    showMessage('🗑️ Delete mode: Click tiles to remove them');
+    
+    // Update button styles
+    document.querySelectorAll('.tile-btn').forEach(btn => btn.style.opacity = '0.7');
+    document.querySelectorAll('.port-btn').forEach(btn => btn.style.opacity = '0.7');
 }
 
 function saveMap() {
@@ -339,22 +467,12 @@ function drawMapBuilder() {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
-    // Draw grid positions
-    const positions = [
-        { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
-        { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
-        { x: -2, y: 2 }, { x: -1, y: 2 }, { x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 },
-        { x: -1, y: 3 }, { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 },
-        { x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 }
-    ];
-
-    positions.forEach(pos => {
-        const existingTile = localState.mapTemplate?.tiles?.find(
-            t => t.x === pos.x && t.y === pos.y
-        );
-        const tile = existingTile || { type: 'water', x: pos.x, y: pos.y };
-        drawHexTile(ctx, tile, hexSize, centerX, centerY, true);
-    });
+    // Draw all tiles in map template
+    if (localState.mapTemplate && localState.mapTemplate.tiles) {
+        localState.mapTemplate.tiles.forEach(tile => {
+            drawHexTile(ctx, tile, hexSize, centerX, centerY, true);
+        });
+    }
 
     // Setup click handler
     canvas.onclick = handleBuilderClick;
@@ -373,42 +491,58 @@ function handleBuilderClick(event) {
     const relX = x - centerX;
     const relY = y - centerY;
 
-    // Find closest hex
-    const positions = [
-        { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
-        { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
-        { x: -2, y: 2 }, { x: -1, y: 2 }, { x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 },
-        { x: -1, y: 3 }, { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 },
-        { x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 }
-    ];
+    // Calculate hex coordinates from pixel position
+    // Using axial coordinates
+    const q = (2/3 * relX) / hexSize;
+    const r = (-1/3 * relX + Math.sqrt(3)/3 * relY) / hexSize;
+    
+    // Round to nearest hex
+    let ax = Math.round(q);
+    let ay = Math.round(r);
+    let az = Math.round(-q - r);
+    
+    // Handle rounding errors
+    const x_diff = Math.abs(ax - q);
+    const y_diff = Math.abs(ay - r);
+    const z_diff = Math.abs(az - (-q - r));
+    
+    if (x_diff > y_diff && x_diff > z_diff) {
+        ax = -ay - az;
+    } else if (y_diff > z_diff) {
+        ay = -ax - az;
+    }
+    
+    const closestPos = { x: ax, y: ay };
 
-    let closestPos = null;
-    let minDist = Infinity;
+    if (!localState.mapTemplate) localState.mapTemplate = { tiles: [], ports: [] };
+    
+    const existingIndex = localState.mapTemplate.tiles.findIndex(
+        t => t.x === closestPos.x && t.y === closestPos.y
+    );
 
-    positions.forEach(pos => {
-        const pixelPos = hexToPixel(pos.x, pos.y, hexSize);
-        const dist = Math.sqrt(
-            Math.pow(relX - pixelPos.x, 2) + Math.pow(relY - pixelPos.y, 2)
-        );
-        if (dist < minDist) {
-            minDist = dist;
-            closestPos = pos;
+    if (localState.deleteMode) {
+        // Delete tile
+        if (existingIndex >= 0) {
+            localState.mapTemplate.tiles.splice(existingIndex, 1);
+            showMessage('🗑️ Tile deleted');
         }
-    });
+    } else if (localState.selectedTile) {
+        // Add or update tile
+        const newTile = {
+            type: localState.selectedTile,
+            x: closestPos.x,
+            y: closestPos.y
+        };
 
-    if (closestPos && minDist < hexSize) {
-        if (!localState.mapTemplate) localState.mapTemplate = { tiles: [], ports: [] };
-        
-        const existingIndex = localState.mapTemplate.tiles.findIndex(
-            t => t.x === closestPos.x && t.y === closestPos.y
-        );
+        if (existingIndex >= 0) {
+            localState.mapTemplate.tiles[existingIndex] = newTile;
+        } else {
+            localState.mapTemplate.tiles.push(newTile);
+        }
+    }
 
-        if (localState.selectedTile) {
-            const newTile = {
-                type: localState.selectedTile,
-                x: closestPos.x,
-                y: closestPos.y
-            };
+    drawMapBuilder();
+}
 
             if (existingIndex >= 0) {
                 localState.mapTemplate.tiles[existingIndex] = newTile;
@@ -553,11 +687,18 @@ function drawSettlement(ctx, vertex, color, centerX, centerY, hexSize) {
     const x = centerX + pos.x;
     const y = centerY + pos.y;
 
-    ctx.fillStyle = color;
-    ctx.fillRect(x - 8, y - 8, 16, 16);
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x - 8, y - 8, 16, 16);
+    // Load and draw settlement SVG
+    const img = new Image();
+    img.src = '/public/images/settlement.svg';
+    
+    // Draw immediately or when loaded
+    if (img.complete) {
+        drawColoredSVG(ctx, img, x - 15, y - 15, 30, 30, color);
+    } else {
+        img.onload = () => {
+            drawColoredSVG(ctx, img, x - 15, y - 15, 30, 30, color);
+        };
+    }
 }
 
 function drawCity(ctx, vertex, color, centerX, centerY, hexSize) {
@@ -565,15 +706,38 @@ function drawCity(ctx, vertex, color, centerX, centerY, hexSize) {
     const x = centerX + pos.x;
     const y = centerY + pos.y;
 
-    ctx.fillStyle = color;
-    ctx.fillRect(x - 10, y - 10, 20, 20);
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x - 10, y - 10, 20, 20);
+    // Load and draw city SVG
+    const img = new Image();
+    img.src = '/public/images/city.svg';
     
-    ctx.fillRect(x - 5, y - 15, 10, 10);
-    ctx.strokeRect(x - 5, y - 15, 10, 10);
+    if (img.complete) {
+        drawColoredSVG(ctx, img, x - 20, y - 20, 40, 40, color);
+    } else {
+        img.onload = () => {
+            drawColoredSVG(ctx, img, x - 20, y - 20, 40, 40, color);
+        };
+    }
 }
+
+function drawColoredSVG(ctx, img, x, y, width, height, color) {
+    // Create a temporary canvas to colorize the SVG
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Draw the image
+    tempCtx.drawImage(img, 0, 0, width, height);
+    
+    // Apply color overlay
+    tempCtx.globalCompositeOperation = 'source-in';
+    tempCtx.fillStyle = color;
+    tempCtx.fillRect(0, 0, width, height);
+    
+    // Draw to main canvas
+    ctx.drawImage(tempCanvas, x, y);
+}
+
 
 function drawRoad(ctx, edge, color, centerX, centerY, hexSize) {
     const start = vertexToPixel(edge.start, hexSize);
@@ -616,7 +780,17 @@ function updateGameDisplay() {
 
     const currentPlayer = localState.game.players[localState.game.currentPlayerIndex];
     document.getElementById('current-turn-player').textContent = currentPlayer.name;
-    document.getElementById('game-phase').textContent = localState.game.phase;
+    
+    // Display setup phase information
+    if (localState.game.phase === 'initial-placement' && localState.game.setupPhase) {
+        const setupInfo = localState.game.setupPhase;
+        const action = setupInfo.placementType === 'settlement' ? 'settlement' : 'road';
+        const round = setupInfo.round === 1 ? '1st' : '2nd';
+        document.getElementById('game-phase').textContent = 
+            `Setup Round ${round}: Place ${action}`;
+    } else {
+        document.getElementById('game-phase').textContent = localState.game.phase;
+    }
 
     // Update players list
     const playersContainer = document.getElementById('game-players');
@@ -668,20 +842,37 @@ function updateActionButtons() {
     
     const currentPlayer = localState.game.players[localState.game.currentPlayerIndex];
     const isCurrentPlayer = currentPlayer.name === localState.playerName;
+    const isSetup = localState.game.phase === 'initial-placement';
 
+    // Disable dice rolling during setup
     document.getElementById('roll-dice-btn').disabled = 
         !isCurrentPlayer || localState.game.phase !== 'roll';
+    
+    // Disable end turn during setup
     document.getElementById('end-turn-btn').disabled = 
-        !isCurrentPlayer || localState.game.phase === 'roll';
-    document.getElementById('build-settlement-btn').disabled = !isCurrentPlayer;
-    document.getElementById('build-city-btn').disabled = !isCurrentPlayer;
-    document.getElementById('build-road-btn').disabled = !isCurrentPlayer;
-    document.getElementById('trade-btn').disabled = !isCurrentPlayer;
-    document.getElementById('dev-card-btn').disabled = !isCurrentPlayer;
+        !isCurrentPlayer || localState.game.phase === 'roll' || isSetup;
+    
+    // Enable settlement/road building for current player during setup
+    if (isSetup && localState.game.setupPhase) {
+        const needsSettlement = localState.game.setupPhase.placementType === 'settlement';
+        const needsRoad = localState.game.setupPhase.placementType === 'road';
+        
+        document.getElementById('build-settlement-btn').disabled = !isCurrentPlayer || !needsSettlement;
+        document.getElementById('build-road-btn').disabled = !isCurrentPlayer || !needsRoad;
+        document.getElementById('build-city-btn').disabled = true; // No cities during setup
+        document.getElementById('trade-btn').disabled = true; // No trading during setup
+        document.getElementById('dev-card-btn').disabled = true; // No dev cards during setup
+    } else {
+        document.getElementById('build-settlement-btn').disabled = !isCurrentPlayer;
+        document.getElementById('build-city-btn').disabled = !isCurrentPlayer;
+        document.getElementById('build-road-btn').disabled = !isCurrentPlayer;
+        document.getElementById('trade-btn').disabled = !isCurrentPlayer;
+        document.getElementById('dev-card-btn').disabled = !isCurrentPlayer;
+    }
     
     if (localState.game.settings.expansions.seafarers) {
         document.getElementById('build-ship-btn').style.display = 'block';
-        document.getElementById('build-ship-btn').disabled = !isCurrentPlayer;
+        document.getElementById('build-ship-btn').disabled = !isCurrentPlayer || isSetup;
     }
 }
 
@@ -730,11 +921,20 @@ function handleGameBoardClick(event, type) {
         };
     }
 
-    socket.emit('buildStructure', {
-        gameCode: localState.gameCode,
-        type,
-        location
-    });
+    // Check if we're in initial placement phase
+    if (localState.game.phase === 'initial-placement') {
+        socket.emit('placeInitial', {
+            gameCode: localState.gameCode,
+            type,
+            location
+        });
+    } else {
+        socket.emit('buildStructure', {
+            gameCode: localState.gameCode,
+            type,
+            location
+        });
+    }
 
     canvas.onclick = null;
 }

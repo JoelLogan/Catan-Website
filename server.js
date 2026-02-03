@@ -47,16 +47,55 @@ function randomizeMap(mapTemplate) {
 
     const numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 
-    // Shuffle resources
-    for (let i = resourceTypes.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [resourceTypes[i], resourceTypes[j]] = [resourceTypes[j], resourceTypes[i]];
-    }
+    // Better shuffling for even distribution
+    const shuffleArray = (array) => {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    };
 
-    // Shuffle numbers
-    for (let i = numbers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+    // Shuffle multiple times to ensure better distribution
+    let bestResources = shuffleArray(resourceTypes);
+    let bestNumbers = shuffleArray(numbers);
+    let bestScore = Infinity;
+
+    // Try multiple shuffles and pick the one with best distribution
+    for (let attempt = 0; attempt < 10; attempt++) {
+        const shuffledResources = shuffleArray(resourceTypes);
+        const shuffledNumbers = shuffleArray(numbers);
+        
+        // Calculate clustering score (lower is better)
+        let score = 0;
+        const landTiles = mapTemplate.tiles.filter(t => t.type === 'land-placeholder');
+        
+        for (let i = 0; i < landTiles.length - 1; i++) {
+            const tile1 = landTiles[i];
+            const resource1 = shuffledResources[i];
+            
+            for (let j = i + 1; j < landTiles.length; j++) {
+                const tile2 = landTiles[j];
+                const resource2 = shuffledResources[j];
+                
+                // Check if tiles are adjacent
+                const dx = Math.abs(tile1.x - tile2.x);
+                const dy = Math.abs(tile1.y - tile2.y);
+                const isAdjacent = (dx <= 1 && dy <= 1 && (dx + dy) <= 2);
+                
+                // Penalize same resource types being adjacent
+                if (isAdjacent && resource1 === resource2) {
+                    score += 10;
+                }
+            }
+        }
+        
+        if (score < bestScore) {
+            bestScore = score;
+            bestResources = shuffledResources;
+            bestNumbers = shuffledNumbers;
+        }
     }
 
     const randomizedTiles = [];
@@ -65,11 +104,11 @@ function randomizeMap(mapTemplate) {
 
     mapTemplate.tiles.forEach(tile => {
         if (tile.type === 'land-placeholder') {
-            const resource = resourceTypes[resourceIndex++];
+            const resource = bestResources[resourceIndex++];
             randomizedTiles.push({
                 ...tile,
                 type: resource,
-                number: resource === 'desert' ? null : numbers[numberIndex++]
+                number: resource === 'desert' ? null : bestNumbers[numberIndex++]
             });
         } else {
             randomizedTiles.push({ ...tile });
@@ -221,6 +260,46 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('rejoinGame', ({ playerName, gameCode }) => {
+        try {
+            const game = games.get(gameCode);
+            
+            if (!game) {
+                socket.emit('reconnectFailed', { message: 'Game not found' });
+                return;
+            }
+
+            // Find the player in the game
+            const player = game.players.find(p => p.name === playerName);
+            
+            if (!player) {
+                socket.emit('reconnectFailed', { message: 'Player not in this game' });
+                return;
+            }
+
+            // Update player's socket ID
+            player.socketId = socket.id;
+            players.set(socket.id, { gameCode, playerName });
+            
+            socket.join(gameCode);
+            socket.emit('reconnected', { 
+                gameCode,
+                game: sanitizeGameForClient(game, playerName)
+            });
+            
+            // Notify other players
+            io.to(gameCode).emit('playerReconnected', {
+                playerName,
+                game: sanitizeGameForClient(game)
+            });
+            
+            console.log(`${playerName} reconnected to game ${gameCode}`);
+        } catch (error) {
+            console.error('Error rejoining game:', error);
+            socket.emit('reconnectFailed', { message: 'Failed to rejoin game' });
+        }
+    });
+
     socket.on('startGame', ({ gameCode }) => {
         try {
             const game = games.get(gameCode);
@@ -246,13 +325,96 @@ io.on('connection', (socket) => {
             game.board = randomizeMap(game.mapTemplate);
             game.developmentCards = initializeDevelopmentCards();
             game.started = true;
-            game.phase = 'setup';
+            game.phase = 'initial-placement';
+            game.setupPhase = {
+                round: 1, // Round 1 or 2
+                placementType: 'settlement', // 'settlement' or 'road'
+                placementsThisRound: 0,
+                totalPlayers: game.players.length
+            };
 
             io.to(gameCode).emit('gameStarted', sanitizeGameForClient(game));
             console.log(`Game ${gameCode} started`);
         } catch (error) {
             console.error('Error starting game:', error);
             socket.emit('error', { message: 'Failed to start game' });
+        }
+    });
+
+    socket.on('placeInitial', ({ gameCode, type, location }) => {
+        try {
+            const game = games.get(gameCode);
+            const playerInfo = players.get(socket.id);
+
+            if (!game || !playerInfo) return;
+
+            const player = game.players.find(p => p.name === playerInfo.playerName);
+            const currentPlayer = game.players[game.currentPlayerIndex];
+
+            if (currentPlayer.name !== playerInfo.playerName) {
+                socket.emit('error', { message: 'Not your turn' });
+                return;
+            }
+
+            if (game.phase !== 'initial-placement') {
+                socket.emit('error', { message: 'Not in initial placement phase' });
+                return;
+            }
+
+            // Place the structure
+            if (type === 'settlement') {
+                player.settlements.push(location);
+                player.victoryPoints++;
+                game.setupPhase.placementType = 'road';
+            } else if (type === 'road') {
+                player.roads.push(location);
+                
+                // Move to next player or next phase
+                game.setupPhase.placementsThisRound++;
+                
+                if (game.setupPhase.round === 1) {
+                    // First round: move to next player
+                    if (game.setupPhase.placementsThisRound < game.players.length) {
+                        game.currentPlayerIndex++;
+                        game.setupPhase.placementType = 'settlement';
+                    } else {
+                        // Start round 2 in reverse order
+                        game.setupPhase.round = 2;
+                        game.setupPhase.placementsThisRound = 0;
+                        game.setupPhase.placementType = 'settlement';
+                        // currentPlayerIndex stays at last player
+                        
+                        // Give resources for second settlement
+                        const lastPlayer = game.players[game.currentPlayerIndex];
+                        const lastSettlement = lastPlayer.settlements[lastPlayer.settlements.length - 1];
+                        distributeInitialResources(game, lastPlayer, lastSettlement);
+                    }
+                } else if (game.setupPhase.round === 2) {
+                    // Second round: move backwards
+                    if (game.setupPhase.placementsThisRound < game.players.length) {
+                        game.currentPlayerIndex--;
+                        game.setupPhase.placementType = 'settlement';
+                        
+                        // Give resources for the settlement just placed
+                        distributeInitialResources(game, player, location);
+                    } else {
+                        // Setup complete, start normal game
+                        game.phase = 'roll';
+                        game.currentPlayerIndex = 0;
+                        delete game.setupPhase;
+                    }
+                }
+            }
+
+            io.to(gameCode).emit('initialPlaced', {
+                player: playerInfo.playerName,
+                type,
+                location,
+                game: sanitizeGameForClient(game)
+            });
+        } catch (error) {
+            console.error('Error placing initial:', error);
+            socket.emit('error', { message: 'Failed to place' });
         }
     });
 
@@ -434,6 +596,20 @@ io.on('connection', (socket) => {
 
 // ===== HELPER FUNCTIONS =====
 
+function distributeInitialResources(game, player, settlementLocation) {
+    // Give resources from tiles adjacent to the settlement
+    game.board.tiles.forEach(tile => {
+        if (tile.type !== 'water' && tile.type !== 'desert' && isVertexOnTile(settlementLocation.vertex, tile)) {
+            if (player.resources[tile.type] !== undefined) {
+                player.resources[tile.type]++;
+                if (game.bank[tile.type] > 0) {
+                    game.bank[tile.type]--;
+                }
+            }
+        }
+    });
+}
+
 function sanitizeGameForClient(game, playerName) {
     // Remove sensitive data, only send what client needs
     const sanitized = {
@@ -458,7 +634,8 @@ function sanitizeGameForClient(game, playerName) {
         board: game.board,
         currentPlayerIndex: game.currentPlayerIndex,
         phase: game.phase,
-        started: game.started
+        started: game.started,
+        setupPhase: game.setupPhase
     };
 
     // If playerName provided, include their full data
