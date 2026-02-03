@@ -827,10 +827,25 @@ function validateRoadPlacement(game, player, edge, isInitialPlacement = false) {
         // Check connection to roads
         if (!hasConnection) {
             for (const road of player.roads) {
-                if (areVerticesAdjacent(road.edge.start, edge.start) ||
-                    areVerticesAdjacent(road.edge.start, edge.end) ||
-                    areVerticesAdjacent(road.edge.end, edge.start) ||
-                    areVerticesAdjacent(road.edge.end, edge.end)) {
+                // Roads connect when they share a vertex (same location, not adjacent)
+                const dist1 = Math.sqrt(
+                    Math.pow(road.edge.start.x - edge.start.x, 2) + 
+                    Math.pow(road.edge.start.y - edge.start.y, 2)
+                );
+                const dist2 = Math.sqrt(
+                    Math.pow(road.edge.start.x - edge.end.x, 2) + 
+                    Math.pow(road.edge.start.y - edge.end.y, 2)
+                );
+                const dist3 = Math.sqrt(
+                    Math.pow(road.edge.end.x - edge.start.x, 2) + 
+                    Math.pow(road.edge.end.y - edge.start.y, 2)
+                );
+                const dist4 = Math.sqrt(
+                    Math.pow(road.edge.end.x - edge.end.x, 2) + 
+                    Math.pow(road.edge.end.y - edge.end.y, 2)
+                );
+                
+                if (dist1 < 0.1 || dist2 < 0.1 || dist3 < 0.1 || dist4 < 0.1) {
                     hasConnection = true;
                     break;
                 }

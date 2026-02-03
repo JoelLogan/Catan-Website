@@ -372,7 +372,7 @@ function updateLobbyDisplay() {
         navigator.clipboard.writeText(localState.game.code).then(() => {
             showMessage('📋 Game code copied to clipboard!');
         }).catch(() => {
-            // Fallback for older browsers
+            // Fallback for older browsers (document.execCommand is deprecated but kept for legacy support)
             const textarea = document.createElement('textarea');
             textarea.value = localState.game.code;
             document.body.appendChild(textarea);
@@ -605,15 +605,16 @@ function drawMapBuilder() {
 function handleBuilderClick(event) {
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
 
     const hexSize = 40;
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
-    const relX = x - centerX;
-    const relY = y - centerY;
+    // Account for zoom and pan - correct transformation order
+    const relX = ((mouseX - localState.canvasOffset.x) / localState.canvasZoom) - centerX;
+    const relY = ((mouseY - localState.canvasOffset.y) / localState.canvasZoom) - centerY;
 
     // Calculate hex coordinates from pixel position
     // Using axial coordinates
@@ -682,9 +683,9 @@ function initGameCanvas() {
         drawGameBoard();
     });
     
-    // Mouse drag for panning
+    // Mouse drag for panning (only when not in build mode)
     canvas.addEventListener('mousedown', (e) => {
-        if (!buildModeState) {
+        if (!buildModeState && e.button === 0) { // Left click only
             localState.isDragging = true;
             localState.lastMousePos = { x: e.clientX, y: e.clientY };
             canvas.style.cursor = 'grabbing';
@@ -703,16 +704,20 @@ function initGameCanvas() {
     });
     
     canvas.addEventListener('mouseup', () => {
-        localState.isDragging = false;
-        if (!buildModeState) {
-            canvas.style.cursor = 'default';
+        if (localState.isDragging) {
+            localState.isDragging = false;
+            if (!buildModeState) {
+                canvas.style.cursor = 'default';
+            }
         }
     });
     
     canvas.addEventListener('mouseleave', () => {
-        localState.isDragging = false;
-        if (!buildModeState) {
-            canvas.style.cursor = 'default';
+        if (localState.isDragging) {
+            localState.isDragging = false;
+            if (!buildModeState) {
+                canvas.style.cursor = 'default';
+            }
         }
     });
     
@@ -747,7 +752,7 @@ function initGameCanvas() {
                 drawGameBoard();
             }
             lastTouchDist = dist;
-        } else if (e.touches.length === 1 && localState.isDragging) {
+        } else if (e.touches.length === 1 && localState.isDragging && !buildModeState) {
             e.preventDefault();
             const dx = e.touches[0].clientX - localState.lastMousePos.x;
             const dy = e.touches[0].clientY - localState.lastMousePos.y;
@@ -1279,12 +1284,16 @@ function startBuildMode(type) {
 function handleBuildModeMouseMove(event, type) {
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
     
     const hexSize = 50;
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
+    
+    // Account for zoom and pan - correct transformation order
+    const x = ((mouseX - localState.canvasOffset.x) / localState.canvasZoom);
+    const y = ((mouseY - localState.canvasOffset.y) / localState.canvasZoom);
     
     if (type === 'settlement' || type === 'city') {
         const vertex = pixelToNearestVertex(x, y, centerX, centerY, hexSize);
