@@ -581,18 +581,31 @@ function drawMapBuilder() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const hexSize = 40;
+    // Calculate center in screen space BEFORE transformation
+    const centerX = canvas.width / 2 / localState.canvasZoom;
+    const centerY = canvas.height / 2 / localState.canvasZoom;
+
     ctx.save();
     ctx.translate(localState.canvasOffset.x, localState.canvasOffset.y);
     ctx.scale(localState.canvasZoom, localState.canvasZoom);
-
-    const hexSize = 40;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
 
     // Draw all tiles in map template
     if (localState.mapTemplate && localState.mapTemplate.tiles) {
         localState.mapTemplate.tiles.forEach(tile => {
             drawHexTile(ctx, tile, hexSize, centerX, centerY, true);
+        });
+    }
+
+    // Draw ports on tiles
+    if (localState.mapTemplate && localState.mapTemplate.ports) {
+        localState.mapTemplate.ports.forEach(port => {
+            const tile = localState.mapTemplate.tiles.find(t => 
+                t.x === port.tileX && t.y === port.tileY
+            );
+            if (tile) {
+                drawPort(ctx, tile, port, hexSize, centerX, centerY);
+            }
         });
     }
 
@@ -609,8 +622,9 @@ function handleBuilderClick(event) {
     const mouseY = event.clientY - rect.top;
 
     const hexSize = 40;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    // Use same center calculation as in drawMapBuilder
+    const centerX = canvas.width / 2 / localState.canvasZoom;
+    const centerY = canvas.height / 2 / localState.canvasZoom;
 
     // Account for zoom and pan - correct transformation order
     const relX = ((mouseX - localState.canvasOffset.x) / localState.canvasZoom) - centerX;
@@ -650,6 +664,36 @@ function handleBuilderClick(event) {
         if (existingIndex >= 0) {
             localState.mapTemplate.tiles.splice(existingIndex, 1);
             showMessage('🗑️ Tile deleted');
+        }
+        // Also delete any port on this tile
+        const portIndex = localState.mapTemplate.ports.findIndex(
+            p => p.tileX === closestPos.x && p.tileY === closestPos.y
+        );
+        if (portIndex >= 0) {
+            localState.mapTemplate.ports.splice(portIndex, 1);
+            showMessage('🗑️ Port deleted');
+        }
+    } else if (localState.selectedPort) {
+        // Add or update port on tile
+        if (existingIndex >= 0) {
+            const portIndex = localState.mapTemplate.ports.findIndex(
+                p => p.tileX === closestPos.x && p.tileY === closestPos.y
+            );
+            const newPort = {
+                type: localState.selectedPort,
+                tileX: closestPos.x,
+                tileY: closestPos.y
+            };
+            
+            if (portIndex >= 0) {
+                localState.mapTemplate.ports[portIndex] = newPort;
+                showMessage(`⚓ Port updated to ${localState.selectedPort}`);
+            } else {
+                localState.mapTemplate.ports.push(newPort);
+                showMessage(`⚓ Port ${localState.selectedPort} placed`);
+            }
+        } else {
+            showMessage('⚠️ Place a tile first before adding a port');
         }
     } else if (localState.selectedTile) {
         // Add or update tile
@@ -779,13 +823,14 @@ function drawGameBoard() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const hexSize = 50;
+    // Calculate center in screen space BEFORE transformation
+    const centerX = canvas.width / 2 / localState.canvasZoom;
+    const centerY = canvas.height / 2 / localState.canvasZoom;
+
     ctx.save();
     ctx.translate(localState.canvasOffset.x, localState.canvasOffset.y);
     ctx.scale(localState.canvasZoom, localState.canvasZoom);
-
-    const hexSize = 50;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
 
     // Draw tiles
     if (localState.game && localState.game.board && localState.game.board.tiles) {
@@ -850,11 +895,7 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
     const x = centerX + pos.x;
     const y = centerY + pos.y;
 
-    // Load and draw tile image
-    const img = new Image();
-    img.src = `/public/images/tiles/${tile.type}.svg`;
-    
-    // Draw placeholder while loading
+    // Draw hex outline first
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i;
@@ -870,9 +911,17 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Draw image when loaded
+    // Load and draw tile image
+    const img = new Image();
+    img.src = `/public/images/tiles/${tile.type}.svg`;
+    
+    // Store the current transformation matrix values
+    const currentTransform = ctx.getTransform();
+    
+    // Draw image when loaded - reapply transformation
     img.onload = () => {
         ctx.save();
+        ctx.setTransform(currentTransform);
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
@@ -885,6 +934,26 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
         ctx.clip();
         ctx.drawImage(img, x - size, y - size, size * 2, size * 2);
         ctx.restore();
+        
+        // Redraw number token on top if needed
+        if (!isBuilder && tile.number) {
+            ctx.save();
+            ctx.setTransform(currentTransform);
+            ctx.fillStyle = tile.number === 6 || tile.number === 8 ? '#ff0000' : '#ffffff';
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 18px Nunito';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tile.number.toString(), x, y);
+            ctx.restore();
+        }
     };
 
     // Draw number token (only if not builder mode and tile has a number)
@@ -917,6 +986,33 @@ function getTileColor(type) {
         'land-placeholder': '#c8c8c8'
     };
     return colors[type] || '#888';
+}
+
+function drawPort(ctx, tile, port, size, centerX, centerY) {
+    const pos = hexToPixel(tile.x, tile.y, size);
+    const x = centerX + pos.x;
+    const y = centerY + pos.y;
+    
+    // Draw port indicator
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 3;
+    
+    // Draw a small circle/marker for the port
+    ctx.beginPath();
+    ctx.arc(x, y - size * 0.5, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Draw port text
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px Nunito';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(port.type, x, y - size * 0.5);
+    
+    ctx.restore();
 }
 
 function hexToPixel(q, r, size) {
@@ -1517,6 +1613,35 @@ function playDevelopmentCard(index) {
 }
 
 // ===== INITIALIZATION =====
+
+// Expose functions globally for HTML onclick handlers
+window.showScreen = showScreen;
+window.createGame = createGame;
+window.joinGame = joinGame;
+window.startGame = startGame;
+window.leaveLobby = leaveLobby;
+window.selectTile = selectTile;
+window.selectPort = selectPort;
+window.enableDeleteMode = enableDeleteMode;
+window.saveMap = saveMap;
+window.loadMap = loadMap;
+window.clearMap = clearMap;
+window.generateDefaultMapTemplate = function() {
+    localState.mapTemplate = generateDefaultMapTemplate();
+    drawMapBuilder();
+    showMessage('✨ Default layout loaded!');
+};
+window.rollDice = rollDice;
+window.endTurn = endTurn;
+window.startBuildMode = startBuildMode;
+window.openTradeDialog = openTradeDialog;
+window.closeTradeDialog = closeTradeDialog;
+window.switchTradeTab = switchTradeTab;
+window.proposeTrade = proposeTrade;
+window.executeBankTrade = executeBankTrade;
+window.acceptTrade = acceptTrade;
+window.declineTrade = declineTrade;
+window.buyDevelopmentCard = buyDevelopmentCard;
 
 window.onload = function() {
     console.log('🏝️ Catan Online - Studio Ghibli Edition loaded!');

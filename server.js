@@ -277,8 +277,9 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Update player's socket ID
+            // Update player's socket ID and mark as connected
             player.socketId = socket.id;
+            player.disconnected = false;
             players.set(socket.id, { gameCode, playerName });
             
             socket.join(gameCode);
@@ -404,11 +405,12 @@ io.on('connection', (socket) => {
                 } else if (game.setupPhase.round === 2) {
                     // Second round: move backwards
                     if (game.setupPhase.placementsThisRound < game.players.length) {
+                        // Give resources for the settlement just placed (second settlement for this player)
+                        const secondSettlement = player.settlements[player.settlements.length - 1];
+                        distributeInitialResources(game, player, secondSettlement);
+                        
                         game.currentPlayerIndex--;
                         game.setupPhase.placementType = 'settlement';
-                        
-                        // Give resources for the settlement just placed
-                        distributeInitialResources(game, player, location);
                     } else {
                         // Setup complete, start normal game
                         game.phase = 'roll';
@@ -585,22 +587,21 @@ io.on('connection', (socket) => {
         if (playerInfo) {
             const game = games.get(playerInfo.gameCode);
             if (game) {
-                game.players = game.players.filter(p => p.socketId !== socket.id);
-                
-                if (game.players.length === 0) {
-                    games.delete(playerInfo.gameCode);
-                    console.log(`Game ${playerInfo.gameCode} deleted (empty)`);
-                } else {
-                    // If host left, assign new host
-                    if (!game.players.some(p => p.isHost)) {
-                        game.players[0].isHost = true;
-                        game.host = game.players[0].name;
-                    }
-                    io.to(playerInfo.gameCode).emit('playerLeft', {
+                // Mark player as disconnected instead of removing them
+                const player = game.players.find(p => p.socketId === socket.id);
+                if (player) {
+                    player.disconnected = true;
+                    player.socketId = null; // Clear socket ID
+                    console.log(`Player ${playerInfo.playerName} disconnected from game ${playerInfo.gameCode}`);
+                    
+                    io.to(playerInfo.gameCode).emit('playerDisconnected', {
                         playerName: playerInfo.playerName,
                         game: sanitizeGameForClient(game)
                     });
                 }
+                
+                // Only delete game if all players are disconnected for a long time
+                // For now, keep the game alive
             }
             players.delete(socket.id);
         }
