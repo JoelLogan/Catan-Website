@@ -1604,6 +1604,16 @@ function executeBankTrade() {
     closeTradeDialog();
 }
 
+function acceptTrade() {
+    showMessage('✅ Trade accepted!');
+    closeTradeDialog();
+}
+
+function declineTrade() {
+    showMessage('❌ Trade declined!');
+    closeTradeDialog();
+}
+
 function buyDevelopmentCard() {
     showMessage('🎴 Development card purchased!');
 }
@@ -1626,7 +1636,7 @@ window.enableDeleteMode = enableDeleteMode;
 window.saveMap = saveMap;
 window.loadMap = loadMap;
 window.clearMap = clearMap;
-window.generateDefaultMapTemplate = function() {
+window.loadDefaultLayout = function() {
     localState.mapTemplate = generateDefaultMapTemplate();
     drawMapBuilder();
     showMessage('✨ Default layout loaded!');
