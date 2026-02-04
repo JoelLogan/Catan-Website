@@ -317,8 +317,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            if (game.players.length < 2) {
-                socket.emit('error', { message: 'Need at least 2 players' });
+            if (game.players.length < 1) {
+                socket.emit('error', { message: 'Need at least 1 player' });
                 return;
             }
 
