@@ -1378,9 +1378,17 @@ function updateGameDisplay() {
         playersContainer.appendChild(playerDiv);
     });
 
-    // Update local player resources
-    if (localState.game.localPlayer) {
-        const resources = localState.game.localPlayer.resources;
+    // Update local player resources - auto-find player if not cached
+    const myPlayer = localState.game.localPlayer || 
+                     localState.game.players.find(p => p.name === localState.playerName);
+    
+    if (myPlayer) {
+        // Cache for next time
+        if (!localState.game.localPlayer) {
+            localState.game.localPlayer = myPlayer;
+        }
+        
+        const resources = myPlayer.resources || {};
         document.getElementById('wood-count').textContent = resources.wood || 0;
         document.getElementById('brick-count').textContent = resources.brick || 0;
         document.getElementById('sheep-count').textContent = resources.sheep || 0;
@@ -1390,15 +1398,14 @@ function updateGameDisplay() {
         // Update development cards
         const devCardsContainer = document.getElementById('dev-cards-container');
         devCardsContainer.innerHTML = '';
-        if (localState.game.localPlayer.developmentCards) {
-            localState.game.localPlayer.developmentCards.forEach((card, index) => {
-                const cardDiv = document.createElement('div');
-                cardDiv.className = 'dev-card';
-                cardDiv.textContent = card.replace(/-/g, ' ').toUpperCase();
-                cardDiv.onclick = () => playDevelopmentCard(index);
-                devCardsContainer.appendChild(cardDiv);
-            });
-        }
+        const devCards = myPlayer.developmentCards || [];
+        devCards.forEach((card, index) => {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'dev-card';
+            cardDiv.textContent = card.replace(/-/g, ' ').toUpperCase();
+            cardDiv.onclick = () => playDevelopmentCard(index);
+            devCardsContainer.appendChild(cardDiv);
+        });
     }
 
     updateActionButtons();
@@ -1410,7 +1417,11 @@ function updateActionButtons() {
     const currentPlayer = localState.game.players[localState.game.currentPlayerIndex];
     const isCurrentPlayer = currentPlayer.name === localState.playerName;
     const isSetup = localState.game.phase === 'initial-placement';
-    const resources = localState.game.localPlayer ? localState.game.localPlayer.resources : null;
+    
+    // Get player resources - auto-find if needed
+    const myPlayer = localState.game.localPlayer || 
+                     localState.game.players.find(p => p.name === localState.playerName);
+    const resources = myPlayer ? myPlayer.resources : null;
 
     // Disable dice rolling during setup
     document.getElementById('roll-dice-btn').disabled = 
