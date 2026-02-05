@@ -373,6 +373,11 @@ io.on('connection', (socket) => {
                 player.settlements.push(location);
                 player.victoryPoints++;
                 game.setupPhase.placementType = 'road';
+                
+                // Give resources for second settlement in round 2
+                if (game.setupPhase.round === 2) {
+                    distributeInitialResources(game, player, location);
+                }
             } else if (type === 'road') {
                 const validation = validateRoadPlacement(game, player, location.edge, true);
                 if (!validation.valid) {
@@ -386,29 +391,22 @@ io.on('connection', (socket) => {
                 game.setupPhase.placementsThisRound++;
                 
                 if (game.setupPhase.round === 1) {
-                    // First round: move to next player
+                    // First round: move to next player (no resources)
                     if (game.setupPhase.placementsThisRound < game.players.length) {
                         game.currentPlayerIndex++;
                         game.setupPhase.placementType = 'settlement';
                     } else {
-                        // Start round 2 in reverse order
+                        // Start round 2 in reverse order (no resources yet - wait for settlement)
                         game.setupPhase.round = 2;
                         game.setupPhase.placementsThisRound = 0;
                         game.setupPhase.placementType = 'settlement';
                         // currentPlayerIndex stays at last player
-                        
-                        // Give resources for second settlement
-                        const lastPlayer = game.players[game.currentPlayerIndex];
-                        const lastSettlement = lastPlayer.settlements[lastPlayer.settlements.length - 1];
-                        distributeInitialResources(game, lastPlayer, lastSettlement);
                     }
                 } else if (game.setupPhase.round === 2) {
                     // Second round: move backwards
+                    // IMPORTANT: Resources were already given when the settlement was placed
+                    // Not when the road is placed!
                     if (game.setupPhase.placementsThisRound < game.players.length) {
-                        // Give resources for the settlement just placed (second settlement for this player)
-                        const secondSettlement = player.settlements[player.settlements.length - 1];
-                        distributeInitialResources(game, player, secondSettlement);
-                        
                         game.currentPlayerIndex--;
                         game.setupPhase.placementType = 'settlement';
                     } else {
@@ -579,6 +577,20 @@ io.on('connection', (socket) => {
             socket.emit('mapsLoaded', { maps });
         } catch (error) {
             console.error('Error loading maps:', error);
+        }
+    });
+
+    socket.on('loadCustomMap', ({ mapName }) => {
+        try {
+            const mapData = savedMaps.get(mapName);
+            if (mapData) {
+                socket.emit('customMapLoaded', { mapData });
+            } else {
+                socket.emit('error', { message: 'Map not found' });
+            }
+        } catch (error) {
+            console.error('Error loading custom map:', error);
+            socket.emit('error', { message: 'Failed to load map' });
         }
     });
 

@@ -236,11 +236,22 @@ socket.on('mapSaved', ({ mapName }) => {
 });
 
 socket.on('mapsLoaded', ({ maps }) => {
+    populateMapDropdown(maps);
     displayAvailableMaps(maps);
 });
 
 socket.on('error', ({ message }) => {
     showMessage('❌ ' + message);
+});
+
+socket.on('customMapLoaded', ({ mapData }) => {
+    if (localState.pendingGameSettings) {
+        const { playerName, settings } = localState.pendingGameSettings;
+        localState.playerName = playerName;
+        localState.mapTemplate = mapData;
+        socket.emit('createGame', { playerName, settings, mapTemplate: mapData });
+        delete localState.pendingGameSettings;
+    }
 });
 
 // ===== UTILITY FUNCTIONS =====
@@ -252,6 +263,11 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
     localState.currentScreen = screenId;
     
+    // Load custom maps when showing create game screen
+    if (screenId === 'create-game') {
+        loadCustomMapsForDropdown();
+    }
+    
     // Initialize canvases when screens are shown
     if (screenId === 'map-builder') {
         // Reset zoom/pan for builder
@@ -260,6 +276,27 @@ function showScreen(screenId) {
         initMapBuilderCanvas();
         drawMapBuilder();
     }
+}
+
+function loadCustomMapsForDropdown() {
+    socket.emit('loadMaps');
+}
+
+function populateMapDropdown(maps) {
+    const mapSelect = document.getElementById('map-select');
+    // Clear existing options except default ones
+    mapSelect.innerHTML = `
+        <option value="default">Default Map</option>
+        <option value="random">Random Map</option>
+    `;
+    
+    // Add custom maps
+    maps.forEach(map => {
+        const option = document.createElement('option');
+        option.value = `custom:${map.name}`;
+        option.textContent = map.name;
+        mapSelect.appendChild(option);
+    });
 }
 
 function showMessage(text, duration = 3000) {
@@ -321,7 +358,15 @@ function createGame() {
 
     const mapSelect = document.getElementById('map-select').value;
     let mapTemplate;
-    if (mapSelect === 'random') {
+    
+    if (mapSelect.startsWith('custom:')) {
+        // Load custom map from server
+        const mapName = mapSelect.substring(7); // Remove "custom:" prefix
+        socket.emit('loadCustomMap', { mapName });
+        // Will continue in socket handler
+        localState.pendingGameSettings = { playerName, settings };
+        return;
+    } else if (mapSelect === 'random') {
         mapTemplate = generateDefaultMapTemplate();
     } else {
         mapTemplate = generateDefaultMapTemplate();
@@ -420,37 +465,75 @@ function startGame() {
 // ===== MAP BUILDER FUNCTIONS =====
 
 function generateDefaultMapTemplate() {
-    // Standard Catan layout with land placeholders
+    // Standard Catan layout - 19 hexes in classic pattern
+    // Using proper axial coordinates for a centered hexagon
     const tiles = [
+        // Top row (3 tiles)
+        { type: 'land-placeholder', x: 0, y: -2 },
+        { type: 'land-placeholder', x: 1, y: -2 },
+        { type: 'land-placeholder', x: 2, y: -2 },
+        
+        // Second row (4 tiles)
+        { type: 'land-placeholder', x: -1, y: -1 },
+        { type: 'land-placeholder', x: 0, y: -1 },
+        { type: 'land-placeholder', x: 1, y: -1 },
+        { type: 'land-placeholder', x: 2, y: -1 },
+        
+        // Middle row (5 tiles)
+        { type: 'land-placeholder', x: -2, y: 0 },
+        { type: 'land-placeholder', x: -1, y: 0 },
         { type: 'land-placeholder', x: 0, y: 0 },
         { type: 'land-placeholder', x: 1, y: 0 },
         { type: 'land-placeholder', x: 2, y: 0 },
+        
+        // Fourth row (4 tiles)
+        { type: 'land-placeholder', x: -2, y: 1 },
         { type: 'land-placeholder', x: -1, y: 1 },
         { type: 'land-placeholder', x: 0, y: 1 },
         { type: 'land-placeholder', x: 1, y: 1 },
-        { type: 'land-placeholder', x: 2, y: 1 },
+        
+        // Bottom row (3 tiles)
         { type: 'land-placeholder', x: -2, y: 2 },
         { type: 'land-placeholder', x: -1, y: 2 },
-        { type: 'land-placeholder', x: 0, y: 2 },
-        { type: 'land-placeholder', x: 1, y: 2 },
-        { type: 'land-placeholder', x: 2, y: 2 },
-        { type: 'land-placeholder', x: -1, y: 3 },
-        { type: 'land-placeholder', x: 0, y: 3 },
-        { type: 'land-placeholder', x: 1, y: 3 },
-        { type: 'land-placeholder', x: 2, y: 3 },
-        { type: 'land-placeholder', x: 0, y: 4 },
-        { type: 'land-placeholder', x: 1, y: 4 },
-        { type: 'land-placeholder', x: 2, y: 4 }
+        { type: 'land-placeholder', x: 0, y: 2 }
     ];
 
-    const ports = [
-        { type: '3:1', position: 0 },
-        { type: '3:1', position: 1 },
-        { type: '3:1', position: 2 },
-        { type: '3:1', position: 3 }
+    // Add water tiles around the border for classic look
+    const waterTiles = [
+        // Top border
+        { type: 'water', x: -1, y: -3 }, { type: 'water', x: 0, y: -3 }, 
+        { type: 'water', x: 1, y: -3 }, { type: 'water', x: 2, y: -3 }, { type: 'water', x: 3, y: -3 },
+        
+        // Upper right
+        { type: 'water', x: 3, y: -2 }, { type: 'water', x: 3, y: -1 },
+        
+        // Right border
+        { type: 'water', x: 3, y: 0 },
+        
+        // Lower right
+        { type: 'water', x: 2, y: 1 }, { type: 'water', x: 1, y: 2 },
+        
+        // Bottom border
+        { type: 'water', x: 0, y: 3 }, { type: 'water', x: -1, y: 3 }, 
+        { type: 'water', x: -2, y: 3 }, { type: 'water', x: -3, y: 3 },
+        
+        // Left border
+        { type: 'water', x: -3, y: 2 }, { type: 'water', x: -3, y: 1 },
+        { type: 'water', x: -3, y: 0 }, { type: 'water', x: -2, y: -1 },
+        { type: 'water', x: -1, y: -2 }
     ];
 
-    return { tiles, ports };
+    // Add ports to some water tiles (classic Catan has 9 ports total)
+    waterTiles[2].port = { type: '3:1' }; // Top
+    waterTiles[5].port = { type: '2:1' }; // Top right
+    waterTiles[7].port = { type: '3:1' }; // Right
+    waterTiles[9].port = { type: '2:1' }; // Bottom right
+    waterTiles[12].port = { type: '3:1' }; // Bottom
+    waterTiles[15].port = { type: '2:1' }; // Bottom left
+    waterTiles[18].port = { type: '3:1' }; // Left
+    waterTiles[20].port = { type: '2:1' }; // Top left
+
+    return { tiles: [...tiles, ...waterTiles], ports: [] };
 }
 
 function selectTile(type) {
@@ -816,6 +899,32 @@ function initGameCanvas() {
     });
 }
 
+// Add window resize handler for responsive canvas
+window.addEventListener('resize', handleWindowResize);
+
+function handleWindowResize() {
+    const canvas = document.getElementById('game-canvas');
+    if (canvas && localState.currentScreen === 'game-screen') {
+        // Adjust canvas size based on available space
+        const gameLayout = document.querySelector('.game-layout');
+        if (gameLayout) {
+            const rect = gameLayout.getBoundingClientRect();
+            // Set canvas to fill available space while maintaining aspect ratio
+            const maxWidth = Math.min(rect.width * 0.6, 900);
+            const maxHeight = Math.min(rect.height, 700);
+            canvas.width = maxWidth;
+            canvas.height = maxHeight;
+            drawGameBoard();
+        }
+    }
+    
+    const builderCanvas = document.getElementById('map-builder-canvas');
+    if (builderCanvas && localState.currentScreen === 'map-builder') {
+        initMapBuilderCanvas();
+        drawMapBuilder();
+    }
+}
+
 function drawGameBoard() {
     const canvas = document.getElementById('game-canvas');
     if (!canvas) return;
@@ -895,7 +1004,7 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
     const x = centerX + pos.x;
     const y = centerY + pos.y;
 
-    // Draw hex outline first
+    // Draw hex outline
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i;
@@ -905,23 +1014,20 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
         else ctx.lineTo(hx, hy);
     }
     ctx.closePath();
-    ctx.fillStyle = getTileColor(tile.type);
-    ctx.fill();
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Load and draw tile image
+    // Load and draw tile image with clipping
     const img = new Image();
     img.src = `/public/images/tiles/${tile.type}.svg`;
     
-    // Store the current transformation matrix values
-    const currentTransform = ctx.getTransform();
-    
-    // Draw image when loaded - reapply transformation
-    img.onload = () => {
+    // Check if image already cached/loaded
+    if (img.complete) {
+        drawTileImage(ctx, img, x, y, size, tile, isBuilder);
+    } else {
+        // Draw background color while loading
         ctx.save();
-        ctx.setTransform(currentTransform);
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
@@ -931,32 +1037,36 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
             else ctx.lineTo(hx, hy);
         }
         ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(img, x - size, y - size, size * 2, size * 2);
+        ctx.fillStyle = getTileColor(tile.type);
+        ctx.fill();
         ctx.restore();
         
-        // Redraw number token on top if needed
-        if (!isBuilder && tile.number) {
-            ctx.save();
-            ctx.setTransform(currentTransform);
-            ctx.fillStyle = tile.number === 6 || tile.number === 8 ? '#ff0000' : '#ffffff';
-            ctx.beginPath();
-            ctx.arc(x, y, 20, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+        // Draw when image loads
+        img.onload = () => {
+            drawTileImage(ctx, img, x, y, size, tile, isBuilder);
+        };
+    }
+}
 
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 18px Nunito';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(tile.number.toString(), x, y);
-            ctx.restore();
-        }
-    };
-
-    // Draw number token (only if not builder mode and tile has a number)
+function drawTileImage(ctx, img, x, y, size, tile, isBuilder) {
+    ctx.save();
+    // Clip to hex shape
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const hx = x + size * Math.cos(angle);
+        const hy = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.clip();
+    
+    // Draw image to fill hex
+    ctx.drawImage(img, x - size, y - size, size * 2, size * 2);
+    ctx.restore();
+    
+    // Draw number token on top if needed
     if (!isBuilder && tile.number) {
         ctx.fillStyle = tile.number === 6 || tile.number === 8 ? '#ff0000' : '#ffffff';
         ctx.beginPath();
@@ -971,6 +1081,11 @@ function drawHexTile(ctx, tile, size, centerX, centerY, isBuilder) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(tile.number.toString(), x, y);
+    }
+    
+    // Draw port if present (after tile image)
+    if (!isBuilder && tile.port) {
+        drawPort(ctx, tile, tile.port, size, 0, 0, x, y);
     }
 }
 
@@ -988,20 +1103,27 @@ function getTileColor(type) {
     return colors[type] || '#888';
 }
 
-function drawPort(ctx, tile, port, size, centerX, centerY) {
-    const pos = hexToPixel(tile.x, tile.y, size);
-    const x = centerX + pos.x;
-    const y = centerY + pos.y;
+function drawPort(ctx, tile, port, size, centerX, centerY, tileX, tileY) {
+    // If tileX/tileY provided, use them directly, otherwise calculate from tile
+    let x, y;
+    if (tileX !== undefined && tileY !== undefined) {
+        x = tileX;
+        y = tileY;
+    } else {
+        const pos = hexToPixel(tile.x, tile.y, size);
+        x = centerX + pos.x;
+        y = centerY + pos.y;
+    }
     
     // Draw port indicator
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.8)';
     ctx.strokeStyle = '#8B4513';
     ctx.lineWidth = 3;
     
-    // Draw a small circle/marker for the port
+    // Draw a larger circle/marker for the port on top of tile
     ctx.beginPath();
-    ctx.arc(x, y - size * 0.5, 10, 0, Math.PI * 2);
+    ctx.arc(x, y - size * 0.5, 15, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     
@@ -1493,6 +1615,15 @@ function handleGameBoardClick(event, type) {
     
     const location = buildModeState.previewLocation;
 
+    // Client-side validation for settlements
+    if (type === 'settlement') {
+        const validation = validateSettlementPlacementClient(location.vertex);
+        if (!validation.valid) {
+            showMessage(`❌ ${validation.reason}`);
+            return;
+        }
+    }
+
     // Check if we're in initial placement phase
     if (localState.game.phase === 'initial-placement') {
         socket.emit('placeInitial', {
@@ -1515,6 +1646,37 @@ function handleGameBoardClick(event, type) {
     canvas.onmouseleave = null;
     buildModeState = null;
     drawGameBoard();
+}
+
+function validateSettlementPlacementClient(vertex) {
+    if (!vertex) {
+        return { valid: false, reason: 'No valid vertex selected' };
+    }
+
+    // Check distance rule: no settlement within 2 edges
+    const allSettlements = [];
+    localState.game.players.forEach(player => {
+        if (player.settlements) {
+            allSettlements.push(...player.settlements.map(s => s.vertex));
+        }
+    });
+
+    for (const existingVertex of allSettlements) {
+        const distance = calculateVertexDistance(vertex, existingVertex);
+        if (distance < 0.1) {
+            return { valid: false, reason: 'Vertex already occupied' };
+        }
+        // Check if vertices share an edge (are adjacent)
+        if (distance < 1.5) {
+            return { valid: false, reason: 'Too close to another settlement (must be 2 edges away)' };
+        }
+    }
+
+    return { valid: true };
+}
+
+function calculateVertexDistance(v1, v2) {
+    return Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.y - v2.y, 2));
 }
 
 function openTradeDialog() {
