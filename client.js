@@ -763,12 +763,22 @@ function handleBuilderClick(event) {
             const portIndex = localState.mapTemplate.ports.findIndex(
                 p => p.tileX === closestPos.x && p.tileY === closestPos.y
             );
-            const newPort = {
-                type: localState.selectedPort,
-                tileX: closestPos.x,
-                tileY: closestPos.y
-            };
-            
+
+            // Handle 2:1 resource-specific ports (e.g., 'wood', 'brick', etc.)
+            const resourceTypes = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
+            const newPort = resourceTypes.includes(localState.selectedPort)
+                ? {
+                    type: '2:1',
+                    resource: localState.selectedPort,
+                    tileX: closestPos.x,
+                    tileY: closestPos.y
+                  }
+                : {
+                    type: localState.selectedPort,
+                    tileX: closestPos.x,
+                    tileY: closestPos.y
+                  };
+
             if (portIndex >= 0) {
                 localState.mapTemplate.ports[portIndex] = newPort;
                 showMessage(`⚓ Port updated to ${localState.selectedPort}`);
@@ -918,8 +928,8 @@ function handleWindowResize() {
             drawGameBoard();
         }
     }
-    
-    const builderCanvas = document.getElementById('map-builder-canvas');
+
+    const builderCanvas = document.getElementById('builder-canvas');
     if (builderCanvas && localState.currentScreen === 'map-builder') {
         initMapBuilderCanvas();
         drawMapBuilder();

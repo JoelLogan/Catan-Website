@@ -2,12 +2,14 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs').promises;
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
+const MAPS_DIR = path.join(__dirname, 'saved-maps');
 
 // Serve static files
 app.use(express.static(__dirname));
@@ -17,6 +19,52 @@ app.use('/public', express.static(path.join(__dirname, 'public')));
 const games = new Map(); // gameCode -> gameState
 const players = new Map(); // socketId -> { gameCode, playerName }
 const savedMaps = new Map(); // mapName -> mapData
+
+// Ensure maps directory exists
+async function ensureMapsDirectory() {
+    try {
+        await fs.mkdir(MAPS_DIR, { recursive: true });
+    } catch (error) {
+        console.error('Error creating maps directory:', error);
+    }
+}
+
+// Load all saved maps from disk on startup
+async function loadMapsFromDisk() {
+    try {
+        await ensureMapsDirectory();
+        const files = await fs.readdir(MAPS_DIR);
+        for (const file of files) {
+            if (file.endsWith('.json')) {
+                const mapName = file.replace('.json', '');
+                const filePath = path.join(MAPS_DIR, file);
+                const data = await fs.readFile(filePath, 'utf8');
+                const mapData = JSON.parse(data);
+                savedMaps.set(mapName, mapData);
+                console.log(`Loaded map: ${mapName}`);
+            }
+        }
+        console.log(`Loaded ${savedMaps.size} maps from disk`);
+    } catch (error) {
+        console.error('Error loading maps from disk:', error);
+    }
+}
+
+// Save a map to disk
+async function saveMapToDisk(mapName, mapData) {
+    try {
+        await ensureMapsDirectory();
+        const filePath = path.join(MAPS_DIR, `${mapName}.json`);
+        await fs.writeFile(filePath, JSON.stringify(mapData, null, 2), 'utf8');
+        console.log(`Saved map to disk: ${mapName}`);
+    } catch (error) {
+        console.error(`Error saving map ${mapName} to disk:`, error);
+        throw error;
+    }
+}
+
+// Initialize maps on startup
+loadMapsFromDisk();
 
 // ===== GAME LOGIC =====
 
@@ -558,9 +606,10 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('saveMap', ({ mapName, mapData }) => {
+    socket.on('saveMap', async ({ mapName, mapData }) => {
         try {
             savedMaps.set(mapName, mapData);
+            await saveMapToDisk(mapName, mapData);
             socket.emit('mapSaved', { mapName });
             console.log(`Map saved: ${mapName}`);
         } catch (error) {
