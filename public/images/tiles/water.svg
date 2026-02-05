@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Water hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="#6ba8d8" stroke="#4a88b8" stroke-width="2"/>
+  <!-- Water waves -->
+  <g opacity="0.3">
+    <path d="M15 35 Q 25 32, 35 35 T 55 35 T 75 35 T 85 35" 
+          stroke="#4a88b8" stroke-width="2" fill="none"/>
+    <path d="M15 45 Q 25 42, 35 45 T 55 45 T 75 45 T 85 45" 
+          stroke="#4a88b8" stroke-width="2" fill="none"/>
+    <path d="M15 55 Q 25 52, 35 55 T 55 55 T 75 55 T 85 55" 
+          stroke="#4a88b8" stroke-width="2" fill="none"/>
+    <path d="M15 65 Q 25 62, 35 65 T 55 65 T 75 65 T 85 65" 
+          stroke="#4a88b8" stroke-width="2" fill="none"/>
+  </g>
+  <!-- Light reflections -->
+  <g opacity="0.5">
+    <ellipse cx="35" cy="40" rx="8" ry="5" fill="#9ac8f8"/>
+    <ellipse cx="60" cy="50" rx="10" ry="6" fill="#9ac8f8"/>
+  </g>
+</svg>

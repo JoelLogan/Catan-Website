@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catan Online - Studio Ghibli Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="screen active">
+            <div class="menu-container">
+                <h1>Catan Online</h1>
+                <div class="menu-buttons">
+                    <button onclick="showScreen('create-game')">Create Game</button>
+                    <button onclick="showScreen('join-game')">Join Game</button>
+                    <button onclick="showScreen('map-builder')">Map Builder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Game Screen -->
+        <div id="create-game" class="screen">
+            <div class="menu-container">
+                <h2>Create Game</h2>
+                <div class="form-group">
+                    <label>Player Name:</label>
+                    <input type="text" id="host-name" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label>Max Players (2-8):</label>
+                    <input type="number" id="max-players" min="2" max="8" value="4">
+                </div>
+                <div class="form-group">
+                    <label>Victory Points to Win:</label>
+                    <input type="number" id="victory-points" min="5" max="20" value="10">
+                </div>
+                <div class="form-group">
+                    <label>Expansions:</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="expansion-seafarers"> Seafarers</label>
+                        <label><input type="checkbox" id="expansion-cities-knights"> Cities & Knights</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Game Pieces per Player:</label>
+                    <div class="pieces-config">
+                        <label>Settlements: <input type="number" id="pieces-settlements" min="1" max="10" value="5"></label>
+                        <label>Cities: <input type="number" id="pieces-cities" min="1" max="10" value="4"></label>
+                        <label>Roads: <input type="number" id="pieces-roads" min="1" max="30" value="15"></label>
+                        <label>Ships: <input type="number" id="pieces-ships" min="0" max="30" value="15"></label>
+                        <label>Knights: <input type="number" id="pieces-knights" min="0" max="10" value="3"></label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Select Map:</label>
+                    <select id="map-select">
+                        <option value="default">Default Map</option>
+                        <option value="random">Random Map</option>
+                    </select>
+                </div>
+                <div class="menu-buttons">
+                    <button onclick="createGame()">Create Game</button>
+                    <button onclick="showScreen('main-menu')">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Game Screen -->
+        <div id="join-game" class="screen">
+            <div class="menu-container">
+                <h2>Join Game</h2>
+                <div class="form-group">
+                    <label>Player Name:</label>
+                    <input type="text" id="join-name" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label>Game Code:</label>
+                    <input type="text" id="game-code" placeholder="Enter 6-digit code">
+                </div>
+                <div class="menu-buttons">
+                    <button onclick="joinGame()">Join Game</button>
+                    <button onclick="showScreen('main-menu')">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lobby Screen -->
+        <div id="lobby" class="screen">
+            <div class="lobby-container">
+                <h2>Game Lobby</h2>
+                <div class="lobby-info">
+                    <p>Game Code: <span id="lobby-code" class="code"></span></p>
+                    <p>Host: <span id="lobby-host"></span></p>
+                </div>
+                <div class="players-list">
+                    <h3>Players (<span id="player-count">0</span>/<span id="max-player-count">4</span>)</h3>
+                    <div id="players-container"></div>
+                </div>
+                <div id="host-controls" class="host-controls" style="display: none;">
+                    <h3>Host Settings</h3>
+                    <button onclick="startGame()">Start Game</button>
+                </div>
+                <div class="menu-buttons">
+                    <button onclick="leaveLobby()">Leave Lobby</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Builder Screen -->
+        <div id="map-builder" class="screen">
+            <div class="builder-container">
+                <h2>🗺️ Map Builder</h2>
+                <p class="builder-description">Create your island layout! Place water, land placeholders, and ports. Land tiles will be randomly assigned when the game starts.</p>
+                <div class="builder-controls">
+                    <div class="tile-selector">
+                        <h3>🏝️ Tiles</h3>
+                        <button onclick="selectTile('water')" class="tile-btn water-btn">🌊 Water</button>
+                        <button onclick="selectTile('land-placeholder')" class="tile-btn land-btn">🏞️ Land (Random)</button>
+                        <button onclick="enableDeleteMode()" class="tile-btn" style="background: linear-gradient(135deg, #ff6b6b 0%, #c92a2a 100%);">🗑️ Delete Tile</button>
+                    </div>
+                    <div class="port-selector">
+                        <h3>⚓ Ports</h3>
+                        <button onclick="selectPort('3:1')" class="port-btn">3:1 Generic</button>
+                        <button onclick="selectPort('wood')" class="port-btn">2:1 Wood</button>
+                        <button onclick="selectPort('brick')" class="port-btn">2:1 Brick</button>
+                        <button onclick="selectPort('sheep')" class="port-btn">2:1 Sheep</button>
+                        <button onclick="selectPort('wheat')" class="port-btn">2:1 Wheat</button>
+                        <button onclick="selectPort('ore')" class="port-btn">2:1 Ore</button>
+                    </div>
+                    <div class="map-actions">
+                        <button onclick="saveMap()">💾 Save Map</button>
+                        <button onclick="loadMap()">📂 Load Map</button>
+                        <button onclick="clearMap()">🗑️ Clear Map</button>
+                        <button onclick="loadDefaultLayout()">✨ Default Layout</button>
+                    </div>
+                </div>
+                <canvas id="builder-canvas" width="800" height="600"></canvas>
+                <div class="menu-buttons">
+                    <button onclick="showScreen('main-menu')">🏠 Back to Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-container">
+                <div class="game-header">
+                    <h2>Catan Game</h2>
+                    <div class="game-info">
+                        <span>Turn: <span id="current-turn-player"></span></span>
+                        <span>Phase: <span id="game-phase"></span></span>
+                    </div>
+                </div>
+                <div class="game-layout">
+                    <div class="left-panel">
+                        <div class="players-panel">
+                            <h3>Players</h3>
+                            <div id="game-players"></div>
+                        </div>
+                        <div class="actions-panel">
+                            <h3>Actions</h3>
+                            <button id="roll-dice-btn" onclick="rollDice()">Roll Dice</button>
+                            <button id="end-turn-btn" onclick="endTurn()" disabled>End Turn</button>
+                            <button id="build-settlement-btn" onclick="startBuildMode('settlement')">Build Settlement</button>
+                            <button id="build-city-btn" onclick="startBuildMode('city')">Build City</button>
+                            <button id="build-road-btn" onclick="startBuildMode('road')">Build Road</button>
+                            <button id="build-ship-btn" onclick="startBuildMode('ship')" style="display:none;">Build Ship</button>
+                            <button id="trade-btn" onclick="openTradeDialog()">Trade</button>
+                            <button id="dev-card-btn" onclick="buyDevelopmentCard()">Buy Dev Card</button>
+                        </div>
+                    </div>
+                    <div class="center-panel">
+                        <canvas id="game-canvas" width="900" height="700"></canvas>
+                        <div class="dice-display" id="dice-display" style="display: none;">
+                            <div class="dice" id="dice1">1</div>
+                            <div class="dice" id="dice2">1</div>
+                        </div>
+                    </div>
+                    <div class="right-panel">
+                        <div class="resources-panel">
+                            <h3>Your Resources</h3>
+                            <div id="player-resources">
+                                <div class="resource"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect fill='%238B4513' width='50' height='50' rx='5'/%3E%3C/svg%3E" alt="Wood"> <span id="wood-count">0</span></div>
+                                <div class="resource"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect fill='%23CD5C5C' width='50' height='50' rx='5'/%3E%3C/svg%3E" alt="Brick"> <span id="brick-count">0</span></div>
+                                <div class="resource"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect fill='%239ACD32' width='50' height='50' rx='5'/%3E%3C/svg%3E" alt="Sheep"> <span id="sheep-count">0</span></div>
+                                <div class="resource"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect fill='%23FFD700' width='50' height='50' rx='5'/%3E%3C/svg%3E" alt="Wheat"> <span id="wheat-count">0</span></div>
+                                <div class="resource"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect fill='%23696969' width='50' height='50' rx='5'/%3E%3C/svg%3E" alt="Ore"> <span id="ore-count">0</span></div>
+                            </div>
+                        </div>
+                        <div class="cards-panel">
+                            <h3>Development Cards</h3>
+                            <div id="dev-cards-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Dialog -->
+        <div id="trade-dialog" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeTradeDialog()">&times;</span>
+                <h2>Trade</h2>
+                <div class="trade-tabs">
+                    <button class="tab-btn active" onclick="switchTradeTab('player', event)">Player Trade</button>
+                    <button class="tab-btn" onclick="switchTradeTab('bank', event)">Bank Trade</button>
+                    <button class="tab-btn" onclick="switchTradeTab('port', event)">Port Trade</button>
+                </div>
+                <div id="player-trade-tab" class="trade-tab-content active">
+                    <h3>Trade with Player</h3>
+                    <div class="trade-section">
+                        <div class="trade-offer">
+                            <h4>You Give:</h4>
+                            <div id="give-resources"></div>
+                        </div>
+                        <div class="trade-receive">
+                            <h4>You Receive:</h4>
+                            <div id="receive-resources"></div>
+                        </div>
+                    </div>
+                    <div class="trade-players">
+                        <label>Trade with:</label>
+                        <select id="trade-player-select"></select>
+                    </div>
+                    <button onclick="proposeTrade()">Propose Trade</button>
+                </div>
+                <div id="bank-trade-tab" class="trade-tab-content">
+                    <h3>Bank Trade (4:1)</h3>
+                    <p>Give 4 of one resource for 1 of another</p>
+                    <div class="bank-trade-controls">
+                        <select id="bank-give-resource"></select>
+                        <span>→</span>
+                        <select id="bank-receive-resource"></select>
+                        <button onclick="executeBankTrade()">Trade</button>
+                    </div>
+                </div>
+                <div id="port-trade-tab" class="trade-tab-content">
+                    <h3>Port Trade</h3>
+                    <div id="port-trade-options"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Proposal Dialog -->
+        <div id="trade-proposal-dialog" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Trade Proposal</h2>
+                <div id="trade-proposal-content"></div>
+                <div class="modal-buttons">
+                    <button onclick="acceptTrade()">Accept</button>
+                    <button onclick="declineTrade()">Decline</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Display -->
+        <div id="message-box" class="message-box"></div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>

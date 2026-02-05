@@ -1,0 +1,17 @@
+{
+  "name": "catan-online",
+  "version": "1.0.0",
+  "description": "Online multiplayer Catan game with Studio Ghibli aesthetic",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["catan", "board-game", "multiplayer"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  }
+}

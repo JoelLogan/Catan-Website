@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <!-- Port dock -->
+  <rect x="5" y="35" width="50" height="10" fill="#8B4513" stroke="#5a3a2a" stroke-width="2"/>
+  <!-- Pillars -->
+  <rect x="10" y="25" width="5" height="20" fill="#5a3a2a"/>
+  <rect x="25" y="25" width="5" height="20" fill="#5a3a2a"/>
+  <rect x="40" y="25" width="5" height="20" fill="#5a3a2a"/>
+  <!-- Roof -->
+  <path d="M 0 25 L 30 10 L 60 25 Z" fill="#CD5C5C" stroke="#8B4513" stroke-width="2"/>
+  <!-- Sign (3:1 or 2:1) -->
+  <rect x="20" y="15" width="20" height="10" fill="#FFE4B5" stroke="#333" stroke-width="2"/>
+  <text x="30" y="23" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#333">3:1</text>
+</svg>

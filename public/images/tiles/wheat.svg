@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Wheat/Fields hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="#f4d47c" stroke="#c4a44c" stroke-width="2"/>
+  <!-- Wheat stalks -->
+  <g opacity="0.7">
+    <g transform="translate(20, 30)">
+      <line x1="0" y1="20" x2="0" y2="0" stroke="#c4a44c" stroke-width="1.5"/>
+      <ellipse cx="0" cy="0" rx="2" ry="4" fill="#d4b45c"/>
+      <ellipse cx="-1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+      <ellipse cx="1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+    </g>
+    <g transform="translate(35, 25)">
+      <line x1="0" y1="25" x2="0" y2="0" stroke="#c4a44c" stroke-width="1.5"/>
+      <ellipse cx="0" cy="0" rx="2" ry="4" fill="#d4b45c"/>
+      <ellipse cx="-1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+      <ellipse cx="1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+    </g>
+    <g transform="translate(50, 30)">
+      <line x1="0" y1="22" x2="0" y2="0" stroke="#c4a44c" stroke-width="1.5"/>
+      <ellipse cx="0" cy="0" rx="2" ry="4" fill="#d4b45c"/>
+      <ellipse cx="-1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+      <ellipse cx="1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+    </g>
+    <g transform="translate(65, 27)">
+      <line x1="0" y1="24" x2="0" y2="0" stroke="#c4a44c" stroke-width="1.5"/>
+      <ellipse cx="0" cy="0" rx="2" ry="4" fill="#d4b45c"/>
+      <ellipse cx="-1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+      <ellipse cx="1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+    </g>
+    <g transform="translate(80, 32)">
+      <line x1="0" y1="20" x2="0" y2="0" stroke="#c4a44c" stroke-width="1.5"/>
+      <ellipse cx="0" cy="0" rx="2" ry="4" fill="#d4b45c"/>
+      <ellipse cx="-1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+      <ellipse cx="1.5" cy="2" rx="1.5" ry="3" fill="#d4b45c"/>
+    </g>
+  </g>
+</svg>
