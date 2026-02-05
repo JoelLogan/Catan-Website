@@ -237,7 +237,7 @@ socket.on('mapSaved', ({ mapName }) => {
 
 socket.on('mapsLoaded', ({ maps }) => {
     populateMapDropdown(maps);
-    displayAvailableMaps(maps);
+    // Don't show prompt here - only populate dropdown silently
 });
 
 socket.on('error', ({ message }) => {
