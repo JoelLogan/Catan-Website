@@ -524,14 +524,15 @@ function generateDefaultMapTemplate() {
     ];
 
     // Add ports to some water tiles (classic Catan has 9 ports total)
+    // Mix of 3:1 generic ports and 2:1 resource-specific ports
     // Total waterTiles: 19 elements (0-18)
-    if (waterTiles.length > 2) waterTiles[2].port = { type: '3:1' }; // Top
-    if (waterTiles.length > 5) waterTiles[5].port = { type: '2:1' }; // Top right
-    if (waterTiles.length > 7) waterTiles[7].port = { type: '3:1' }; // Right
-    if (waterTiles.length > 9) waterTiles[9].port = { type: '2:1' }; // Bottom right
-    if (waterTiles.length > 12) waterTiles[12].port = { type: '3:1' }; // Bottom
-    if (waterTiles.length > 15) waterTiles[15].port = { type: '2:1' }; // Bottom left
-    if (waterTiles.length > 17) waterTiles[17].port = { type: '3:1' }; // Left
+    if (waterTiles.length > 2) waterTiles[2].port = { type: '3:1' }; 
+    if (waterTiles.length > 5) waterTiles[5].port = { type: '2:1', resource: 'wood' }; 
+    if (waterTiles.length > 7) waterTiles[7].port = { type: '3:1' }; 
+    if (waterTiles.length > 9) waterTiles[9].port = { type: '2:1', resource: 'wheat' }; 
+    if (waterTiles.length > 12) waterTiles[12].port = { type: '3:1' }; 
+    if (waterTiles.length > 15) waterTiles[15].port = { type: '2:1', resource: 'ore' }; 
+    if (waterTiles.length > 17) waterTiles[17].port = { type: '3:1' };
 
     return { tiles: [...tiles, ...waterTiles], ports: [] };
 }
@@ -1127,12 +1128,13 @@ function drawPort(ctx, tile, port, size, centerX, centerY, tileX, tileY) {
     ctx.fill();
     ctx.stroke();
     
-    // Draw port text
+    // Draw port text - show resource for 2:1 ports
     ctx.fillStyle = '#000';
     ctx.font = 'bold 12px Nunito';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(port.type, x, y - size * 0.5);
+    const displayText = port.resource ? `${port.type} ${port.resource}` : port.type;
+    ctx.fillText(displayText, x, y - size * 0.5);
     
     ctx.restore();
 }
