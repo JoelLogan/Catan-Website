@@ -500,38 +500,38 @@ function generateDefaultMapTemplate() {
 
     // Add water tiles around the border for classic look
     const waterTiles = [
-        // Top border
+        // Top border (5 tiles)
         { type: 'water', x: -1, y: -3 }, { type: 'water', x: 0, y: -3 }, 
         { type: 'water', x: 1, y: -3 }, { type: 'water', x: 2, y: -3 }, { type: 'water', x: 3, y: -3 },
         
-        // Upper right
+        // Upper right (2 tiles)
         { type: 'water', x: 3, y: -2 }, { type: 'water', x: 3, y: -1 },
         
-        // Right border
+        // Right border (1 tile)
         { type: 'water', x: 3, y: 0 },
         
-        // Lower right
+        // Lower right (2 tiles)
         { type: 'water', x: 2, y: 1 }, { type: 'water', x: 1, y: 2 },
         
-        // Bottom border
+        // Bottom border (4 tiles)
         { type: 'water', x: 0, y: 3 }, { type: 'water', x: -1, y: 3 }, 
         { type: 'water', x: -2, y: 3 }, { type: 'water', x: -3, y: 3 },
         
-        // Left border
+        // Left border (4 tiles)
         { type: 'water', x: -3, y: 2 }, { type: 'water', x: -3, y: 1 },
         { type: 'water', x: -3, y: 0 }, { type: 'water', x: -2, y: -1 },
         { type: 'water', x: -1, y: -2 }
     ];
 
     // Add ports to some water tiles (classic Catan has 9 ports total)
-    waterTiles[2].port = { type: '3:1' }; // Top
-    waterTiles[5].port = { type: '2:1' }; // Top right
-    waterTiles[7].port = { type: '3:1' }; // Right
-    waterTiles[9].port = { type: '2:1' }; // Bottom right
-    waterTiles[12].port = { type: '3:1' }; // Bottom
-    waterTiles[15].port = { type: '2:1' }; // Bottom left
-    waterTiles[18].port = { type: '3:1' }; // Left
-    waterTiles[20].port = { type: '2:1' }; // Top left
+    // Total waterTiles: 19 elements (0-18)
+    if (waterTiles.length > 2) waterTiles[2].port = { type: '3:1' }; // Top
+    if (waterTiles.length > 5) waterTiles[5].port = { type: '2:1' }; // Top right
+    if (waterTiles.length > 7) waterTiles[7].port = { type: '3:1' }; // Right
+    if (waterTiles.length > 9) waterTiles[9].port = { type: '2:1' }; // Bottom right
+    if (waterTiles.length > 12) waterTiles[12].port = { type: '3:1' }; // Bottom
+    if (waterTiles.length > 15) waterTiles[15].port = { type: '2:1' }; // Bottom left
+    if (waterTiles.length > 17) waterTiles[17].port = { type: '3:1' }; // Left
 
     return { tiles: [...tiles, ...waterTiles], ports: [] };
 }
