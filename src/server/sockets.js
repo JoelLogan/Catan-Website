@@ -25,7 +25,7 @@ export function clientIp(socket, config) {
 }
 
 export function attachSockets({ io, rooms, maps, config, logger }) {
-    const eventLimiter = new RateLimiter({ capacity: 40, refillPerSecond: 15 });
+    const eventLimiter = new RateLimiter({ capacity: config.eventBurst, refillPerSecond: config.eventPerSecond });
     // Limits brute-forcing of room codes and room spam.
     const joinLimiter = new RateLimiter({ capacity: config.joinBurst, refillPerSecond: config.joinPerMinute / 60 });
     const chatLimiter = new RateLimiter({ capacity: 5, refillPerSecond: 1 });

@@ -12,13 +12,15 @@ let srv;
 let url;
 let dataDir;
 const clients = [];
+const tempDirs = [];
 
 async function start(overrides = {}) {
-    dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'catan-test-'));
-    const config = { ...loadConfig({}), dataDir, logLevel: 'silent', botDelayMs: 5, afkGraceMs: 50, joinBurst: 1000, ...overrides };
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'catan-test-'));
+    tempDirs.push(dir);
+    const config = { ...loadConfig({}), dataDir: dir, logLevel: 'silent', botDelayMs: 5, afkGraceMs: 50, joinBurst: 1000, ...overrides };
     const s = await createServer(config);
     await new Promise((r) => s.server.listen(0, '127.0.0.1', r));
-    return { s, url: `http://127.0.0.1:${s.server.address().port}` };
+    return { s, url: `http://127.0.0.1:${s.server.address().port}`, dir };
 }
 
 function connect(opts = {}) {
@@ -45,13 +47,13 @@ async function waitFor(fn, ms = 3000) {
 }
 
 before(async () => {
-    ({ s: srv, url } = await start());
+    ({ s: srv, url, dir: dataDir } = await start());
 });
 
 after(async () => {
     for (const c of clients) c.close();
     await srv.close();
-    await fs.rm(dataDir, { recursive: true, force: true });
+    for (const dir of tempDirs) await fs.rm(dir, { recursive: true, force: true });
 });
 
 describe('http', () => {
@@ -126,6 +128,22 @@ describe('rooms', () => {
     });
 
     test('a solo host can play a full game against bots', async () => {
+        // A bot-driven "human" acts far faster than people do, so use a separate server without the event limit.
+        const { s, url: u } = await start({ eventBurst: 100_000, eventPerSecond: 100_000 });
+        const saved = url;
+        const mainSrv = srv;
+        url = u;
+        srv = s;
+        try {
+            await soloGame();
+        } finally {
+            url = saved;
+            srv = mainSrv;
+            await s.close();
+        }
+    });
+
+    async function soloGame() {
         const host = await connect();
         const { code } = await call(host, 'room:create', { name: 'Solo', settings: { victoryPoints: 5 } });
         assert.ok(code);
@@ -133,24 +151,28 @@ describe('rooms', () => {
         assert.equal((await call(host, 'room:addBot')).ok, true);
         assert.equal((await call(host, 'room:addBot')).ok, true);
         assert.equal((await call(host, 'room:start')).ok, true);
-        // Drive the host with the same bot logic via raw actions until the game ends.
+        // Drive the host with the same bot logic, one acknowledged action at a time.
         const { chooseAction } = await import('../src/engine/bot.js');
         const room = srv.rooms.get(code);
         const me = room.members[0].id;
-        await waitFor(() => {
+        const deadline = Date.now() + 60_000;
+        while (room.game.state.phase !== 'finished') {
+            assert.ok(Date.now() < deadline, 'game did not finish in time');
             const g = room.game;
-            if (g.state.phase === 'finished') return true;
             const idx = g.playerIndex(me);
             if (g.waitingOn().players.includes(idx)) {
-                const a = chooseAction(g, idx);
-                host.emit('game:action', { action: a }, () => {});
+                const res = await call(host, 'game:action', { action: chooseAction(g, idx) });
+                assert.equal(res.ok, true, res.error);
+            } else {
+                await new Promise((r) => setTimeout(r, 5));
             }
-            return false;
-        }, 60_000);
+        }
         const st = await waitFor(() => lastState(host)?.game?.phase === 'finished' && lastState(host));
         assert.ok(st.game.winner !== null);
-        assert.equal((await call(host, 'room:rematch')).ok, true);
-    });
+        const rematch = await call(host, 'room:rematch');
+        assert.equal(rematch.ok, true, rematch.error);
+        host.close();
+    }
 
     test('game actions are validated and errors reported', async () => {
         const host = await connect();

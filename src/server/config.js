@@ -29,6 +29,9 @@ export function loadConfig(env = process.env) {
         botDelayMs: int(env.BOT_DELAY_MS, 700),
         // Room create/join/resume attempts allowed per IP (burst, then per minute).
         joinBurst: int(env.JOIN_BURST, 10),
+        // Socket events allowed per connection (burst, then per second).
+        eventBurst: int(env.EVENT_BURST, 40),
+        eventPerSecond: int(env.EVENT_PER_SECOND, 15),
         joinPerMinute: int(env.JOIN_PER_MINUTE, 10),
         logLevel: env.LOG_LEVEL || 'info',
     };
