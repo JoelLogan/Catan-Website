@@ -72,7 +72,7 @@ export function playOut(game, { maxSteps = 20000, check = true, trades = true } 
         try {
             game.act(idOf(game, me), action);
         } catch (err) {
-            throw new Error(`step ${steps} ${w.kind} ${JSON.stringify(action)}: ${err.message}`);
+            throw new Error(`step ${steps} ${w.kind} ${JSON.stringify(action)}: ${err.message}`, { cause: err });
         }
         if (check && steps % 25 === 0) checkInvariants(game, initial);
         steps++;

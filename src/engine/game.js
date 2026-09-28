@@ -12,7 +12,7 @@ import {
     RESOURCES, COMMODITIES, COSTS, TERRAIN_RESOURCE, LIMITS, RESOURCE_LABELS,
 } from '../../shared/constants.js';
 import { buildGraph, hexKey, neighbor, cornerId, sideEdgeId } from '../../shared/hex.js';
-import { GameError, assert } from './errors.js';
+import { assert } from './errors.js';
 import { generateBoard } from './board.js';
 import { shuffle } from './rng.js';
 import { emptyHand, handSize, hasCards, addCards, transfer, parseHand, handToList } from './hand.js';
