@@ -16,8 +16,9 @@ function legalFor(game, me) {
 
     if (w.kind === 'setup') {
         if (s.setup.step === 'road') {
-            legal.roads = edges.filter((e) => game.canPlaceRoad(me, e, { fromVertex: s.setup.lastVertex }));
-            legal.ships = edges.filter((e) => game.canPlaceShip(me, e, { fromVertex: s.setup.lastVertex }));
+            const left = game.piecesLeft(me);
+            legal.roads = left.roads > 0 ? edges.filter((e) => game.canPlaceRoad(me, e, { fromVertex: s.setup.lastVertex })) : [];
+            legal.ships = left.ships > 0 ? edges.filter((e) => game.canPlaceShip(me, e, { fromVertex: s.setup.lastVertex })) : [];
         } else {
             legal.settlements = vertices.filter((v) => game.canPlaceSettlement(me, v, { setup: true }));
         }

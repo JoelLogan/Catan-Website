@@ -243,11 +243,12 @@ export function chooseAction(game, me, { passive = false } = {}) {
         case 'setup': {
             if (s.setup.step === 'road') {
                 const from = s.setup.lastVertex;
+                const left = game.piecesLeft(me);
                 const roads = [];
                 const ships = [];
                 for (const e of game.graph.edges.keys()) {
-                    if (game.canPlaceRoad(me, e, { fromVertex: from })) roads.push(e);
-                    else if (game.canPlaceShip(me, e, { fromVertex: from })) ships.push(e);
+                    if (left.roads > 0 && game.canPlaceRoad(me, e, { fromVertex: from })) roads.push(e);
+                    else if (left.ships > 0 && game.canPlaceShip(me, e, { fromVertex: from })) ships.push(e);
                 }
                 if (roads.length) return { type: 'build', piece: 'road', at: bestEdge(game, me, roads) };
                 return { type: 'build', piece: 'ship', at: bestEdge(game, me, ships) };

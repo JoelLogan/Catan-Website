@@ -1,219 +1,124 @@
-# Catan Online - Studio Ghibli Edition 🏝️
+# Catan Online 🏝️
 
-A beautiful, server-based multiplayer implementation of the board game Catan, featuring a whimsical Studio Ghibli-inspired aesthetic and real-time multiplayer gameplay.
+A real-time multiplayer implementation of *The Settlers of Catan* that runs in the browser: 2–8 players, the **Seafarers** and **Cities & Knights** expansions, bot opponents, and a map builder, all with a storybook, Studio-Ghibli-inspired look.
 
-## ✨ Features
+> A fan-made, non-commercial project. Catan is a trademark of Catan GmbH.
 
-### 🎮 True Multiplayer Experience
-- **Real-time multiplayer** via Socket.IO
-- **Working join codes** - Share 6-digit codes to invite friends
-- **2-8 player support** with live lobby updates
-- **Server-side validation** - No cheating possible!
-- **Synchronized game state** across all connected players
+## Features
 
-### 🎨 Studio Ghibli Aesthetic
-- **Hand-drawn tile images** - Beautiful SVG artwork for all resources
-- **Whimsical UI design** - Soft pastels, floating clouds, glowing sun
-- **Smooth animations** - Button ripples, dice rolls, screen transitions
-- **Custom fonts** - Patrick Hand for headers, Nunito for body
-- **Nature-inspired palette** - Sky blues, forest greens, golden yellows
+- **Join codes & invite links.** The host creates a game and shares a 6-character code (or a `https://…/#CODE` link).
+- **Host-controlled lobby.** Players, victory points, map, expansions, pieces per player (settlements, cities, roads, ships), discard limit, special building phase, turn order and island bonus. Everyone sees the settings update live.
+- **Bots.** Add AI players to fill seats or play solo.
+- **Complete base rules.** Snake-order setup; production with the bank-shortage rule; the robber and discarding on 7; development cards (Knight, Road Building, Year of Plenty, Monopoly, hidden Victory Points); Longest Road and Largest Army; 4:1 bank trades plus 3:1/2:1 harbors; player trades with counter-offers; and the 5–6 player special building phase.
+- **Seafarers.** Ships (build, and move open ships), the pirate, gold fields, an island bonus, and longest trade routes that combine roads and ships.
+- **Cities & Knights.** Commodities, three city-improvement tracks with the Trading House, Fortress and Aqueduct, metropolises, knights (recruit, promote, activate, move, displace, chase the robber), barbarian attacks, the Defender of Catan, city walls, the event die, and all 54 progress cards.
+- **Map builder.** Paint sea, random land or fixed terrain (including gold); place and rotate harbors; add a sea border. Save maps to the server, open saved maps, or import/export JSON files. Built-in maps are provided for 3–4, 5–6 and 7–8 players, plus an islands map for Seafarers.
+- **Resilient sessions.** A reload or dropped connection resumes the game automatically. Players who stay away longer than the grace period are played safely by the server, so a game never stalls. Games survive server restarts.
+- **Responsive.** Works on desktop and phones: pinch/scroll zoom, drag to pan, and highlighted legal spots.
 
-### 🗺️ Server-Side Map Builder
-- **Restricted tile placement** - Only water, land placeholders, and ports
-- **Server randomization** - Resources assigned when game starts
-- **Save/Load functionality** - Store custom map templates on server
-- **Default layouts** - Quick start with standard Catan setup
+## Quick start
 
-### 🏗️ Complete Game Features
-- Hexagonal board with resource tiles
-- Dice rolling with resource distribution
-- Building settlements, cities, roads, and ships
-- Development cards system
-- Three-way trading (player, bank, port)
-- Victory points tracking
-- Expansions: Seafarers & Cities & Knights
-- Customizable game pieces per player
-- Host-controlled match settings
-
-## 🚀 Quick Start
-
-### Installation
+Requires **Node.js 22 or newer**.
 
 ```bash
-# Clone the repository
-git clone https://github.com/JoelLogan/Catan-Website.git
-cd Catan-Website
-
-# Install dependencies
 npm install
-
-# Start the server
-npm start
+npm start          # http://localhost:3000
 ```
 
-The server will start on port 3000. Visit `http://localhost:3000` in your browser.
+For development, `npm run dev` restarts the server on file changes.
 
-### Playing the Game
+### Docker
 
-1. **Host Creates Game**
-   - Click "Create Game"
-   - Enter your name and configure settings
-   - Select expansions and customize game pieces
-   - Click "Create Game" to get a 6-digit join code
+```bash
+docker build -t catan-online .
+docker run -p 3000:3000 -v catan-data:/app/data catan-online
+```
 
-2. **Players Join**
-   - Click "Join Game"
-   - Enter name and the host's 6-digit code
-   - Click "Join Game"
+## Configuration
 
-3. **Start Playing**
-   - Host clicks "Start Game" when ready
-   - Map is randomized server-side
-   - Take turns building and trading to victory!
+All settings are optional environment variables.
 
-## 🏗️ Architecture
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` / `HOST` | `3000` / `0.0.0.0` | Listen address |
+| `NODE_ENV` | – | Set to `production` for HSTS, `upgrade-insecure-requests` and static caching |
+| `DATA_DIR` | `./data` | Where saved maps and in-progress games are stored |
+| `PERSIST` | `true` | Set `false` to keep everything in memory |
+| `TRUST_PROXY` | `0` | Number of reverse proxies in front of the app (for correct client IPs in rate limiting) |
+| `ALLOWED_ORIGINS` | – | Extra comma-separated origins allowed to open socket connections |
+| `MAX_ROOMS` | `500` | Maximum concurrent games |
+| `MAX_MAPS` / `MAX_MAPS_PER_OWNER` | `1000` / `50` | Saved-map limits |
+| `MAX_CONNECTIONS_PER_IP` | `30` | Concurrent socket connections per address |
+| `JOIN_BURST` / `JOIN_PER_MINUTE` | `10` / `10` | Create/join/resume attempts per address (limits code guessing) |
+| `EVENT_BURST` / `EVENT_PER_SECOND` | `40` / `15` | Socket events per connection |
+| `AFK_GRACE_MS` | `60000` | How long a disconnected player's turn waits before the server plays for them |
+| `BOT_DELAY_MS` | `700` | Pause between bot moves |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` or `silent` (logs are JSON lines) |
 
-### Server-Side (`server.js`)
-- **Express.js** web server
-- **Socket.IO** for real-time communication
-- Game session management
-- Map randomization algorithm
-- Turn validation and enforcement
-- Resource distribution logic
-- Building and trading validation
+`GET /healthz` returns `{ ok, uptime, rooms, maps }` for load balancers and container health checks.
 
-### Client-Side (`client.js`)
-- Socket.IO client
-- Real-time event handling
-- Canvas-based board rendering
-- Local UI state management
-- Optimistic updates with server confirmation
+Behind a reverse proxy, forward WebSocket upgrades (`Upgrade`/`Connection` headers) for `/socket.io/`, and set `TRUST_PROXY=1`.
 
-### Visual Assets (`public/images/tiles/`)
-- Hand-drawn SVG tiles for each resource type:
-  - 🌲 Wood (forest)
-  - 🧱 Brick (clay)
-  - 🐑 Sheep (pasture)
-  - 🌾 Wheat (fields)
-  - ⛰️ Ore (mountains)
-  - 🏜️ Desert (sand)
-  - 🌊 Water (ocean)
-  - ❓ Land Placeholder (for randomization)
+## Architecture
 
-## 🎯 Map Builder Usage
+```
+shared/        Code used by both server and browser
+  hex.js         Integer hex lattice: exact vertex/edge ids, pixel mapping
+  templates.js   Map template validation + built-in maps
+  constants.js   Resources, costs, limits
+src/
+  engine/        Pure, deterministic rules engine (no I/O)
+    game.js        State machine and base/Seafarers rules
+    ck.js          Cities & Knights
+    board.js       Randomized board generation (balanced number placement)
+    view.js        Per-player views that hide private information
+    bot.js         Heuristic player (bots, AFK play, simulations)
+  server/        Express + Socket.IO
+    app.js         HTTP, security headers, static files
+    sockets.js     Event validation, rate limiting, room binding
+    rooms.js       Lobby, host controls, automation, persistence
+    mapStore.js    Saved maps with owner keys
+public/        Browser client (ES modules, no build step)
+test/          Unit, rules, simulation and server integration tests
+e2e/           Browser smoke test
+scripts/       Maintenance scripts
+```
 
-The map builder is designed for creating island layouts:
+The server is **authoritative**. Clients send intents (`{type: 'build', piece: 'road', at: '<edge id>'}`); the engine validates every action and sends each player a personal view. The view includes the legal spots for that player's next move, which the client highlights.
 
-1. **Place Tiles**
-   - 🌊 **Water** - Ocean tiles around the island
-   - 🏞️ **Land Placeholder** - Will become random resources when game starts
+## Security
 
-2. **Add Ports** ⚓
-   - 3:1 Generic ports
-   - 2:1 Resource-specific ports (Wood, Brick, Sheep, Wheat, Ore)
+- Only `public/` and `shared/` are served over HTTP; source, data and configuration are not reachable.
+- A strict Content-Security-Policy with no inline scripts or event handlers. The client renders all user-provided text (names, chat, map names) through text nodes, never `innerHTML`.
+- Seats are protected by random 256-bit resume tokens, stored hashed on the server. Knowing someone's name or the room code does not let you take their seat.
+- Every socket payload is type-checked and every game action is validated by the engine. Payloads are size-limited, events are rate-limited per connection and per address, and cross-origin socket connections are refused.
+- Saved maps get server-generated ids, so user input never becomes a file path. Only the creator can overwrite or delete a map (by holding a secret browser key; only its hash is stored). Files are written atomically.
+- Dependencies are kept current; CI runs `npm audit`.
 
-3. **Save Your Map** 💾
-   - Maps are stored server-side
-   - Load them for future games
+## Testing
 
-**Note:** You cannot place specific resources in the builder. All land tiles are randomized by the server when the game starts, ensuring fair gameplay!
+```bash
+npm run lint
+npm test       # engine rules, full bot games (2–8 players, all expansions), server integration
+npm run e2e    # plays a whole game in a real browser (set CHROMIUM_PATH if Chromium is not installed via Playwright)
+```
 
-## 🎨 Design Philosophy
+The simulation tests play dozens of complete games with bots in every configuration while checking invariants: cards are never created or destroyed, the distance rule and piece limits hold, and no view leaks hidden information.
 
-Inspired by Studio Ghibli films, the game features:
-- **Natural color gradients** - Sky to field transitions
-- **Soft, rounded shapes** - Friendly and inviting
-- **Whimsical details** - Floating clouds, glowing sun, hand-drawn tiles
-- **Smooth animations** - Everything feels alive and responsive
-- **Pastel palette** - Easy on the eyes, magical atmosphere
+## Migrating maps from the old version
 
-## 🔧 Technical Details
+Maps saved by the previous version (the `saved-maps/` folder) can be imported once:
 
-### Dependencies
-- `express` ^4.18.2 - Web server framework
-- `socket.io` ^4.6.1 - Real-time bidirectional communication
+```bash
+node scripts/import-legacy-maps.js ./saved-maps
+```
 
-### Port Configuration
-Default port: 3000 (configurable via PORT environment variable)
+## Known limitations
 
-### Game State Storage
-- In-memory game sessions (resets on server restart)
-- Map templates stored server-side
-- Player connections tracked per session
+- Games are hosted on a single server process (no horizontal scaling).
+- Progress cards whose physical version needs table talk use prompts; a few rare timing subtleties of Cities & Knights are simplified. For example, the current player may hold more than 4 progress cards during their own turn and must discard down to 4 before ending it.
+- There is no spectator mode.
 
-### Security Features
-- All game actions validated server-side
-- Turn enforcement
-- Resource count verification
-- Building placement validation
-- No client-side game state manipulation
+## License
 
-## 🎮 Game Rules Implemented
-
-### Building Costs
-- **Settlement**: 1 Wood, 1 Brick, 1 Sheep, 1 Wheat
-- **City**: 2 Wheat, 3 Ore (upgrades settlement)
-- **Road**: 1 Wood, 1 Brick
-- **Ship**: 1 Wood, 1 Sheep (Seafarers expansion)
-- **Development Card**: 1 Sheep, 1 Wheat, 1 Ore
-
-### Victory Points
-- Settlement: 1 VP
-- City: 2 VP (1 additional from settlement)
-- Victory Point cards
-- Longest Road (2 VP)
-- Largest Army (2 VP)
-
-### Trading
-- **Player-to-Player**: Propose any trade
-- **Bank Trade**: 4:1 ratio (4 of one resource for 1 of another)
-- **Port Trade**: 3:1 or 2:1 (depends on port type)
-
-## 🌟 What's Different from Standard Catan?
-
-This implementation is fully digital with several enhancements:
-- **Server-side fairness** - No manual shuffling or cheating
-- **Instant resource distribution** - No counting needed
-- **Automatic validation** - Can't build where you shouldn't
-- **Real-time multiplayer** - Play with friends anywhere
-- **Custom map templates** - Create unique island layouts
-- **Flexible player counts** - 2-8 players supported
-
-## 📱 Browser Compatibility
-
-Tested and working on:
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-Requires modern browser with:
-- HTML5 Canvas support
-- WebSocket support
-- ES6 JavaScript
-
-## 🐛 Known Limitations
-
-- Game state resets on server restart (no persistence)
-- Single server instance (no horizontal scaling)
-- No spectator mode
-- No game replay feature
-- No AI players
-
-## 🤝 Contributing
-
-This is a fan-made educational project. Catan is a trademark of Catan GmbH.
-
-## 📜 License
-
-MIT License - See LICENSE file for details
-
-## 🎭 Credits
-
-- Original board game by Klaus Teuber
-- Inspired by Studio Ghibli's art style
-- Built with love for board games and beautiful design
-
----
-
-**Enjoy building your island empire!** 🏝️🎮✨
+MIT

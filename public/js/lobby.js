@@ -137,7 +137,13 @@ function build(root, view, actions) {
         }
         mapSelect.value = current;
         const saved = (ui.saved || []).find((m) => `custom:${m.id}` === current);
-        mapInfo.textContent = saved ? `${saved.land} land tiles, ${saved.ports} harbors` : '';
+        const builtin = (ui.builtin || []).find((m) => m.id === current);
+        const n = ui.lastView.room.members.length;
+        if (saved) mapInfo.textContent = `${saved.land} land tiles, ${saved.ports} harbors`;
+        else if (builtin) {
+            const [lo, hi] = builtin.players;
+            mapInfo.textContent = `Designed for ${lo}–${hi} players${n > hi ? ' — it will be crowded with this many players' : ''}${builtin.seafarers ? '; best with Seafarers' : ''}.`;
+        } else mapInfo.textContent = 'Picks the classic, large or huge map to fit the number of players.';
     }
     mapSelect.addEventListener('focus', loadMaps);
 
@@ -161,7 +167,7 @@ function build(root, view, actions) {
 
     const state = {
         code, el, f, sbp, mapSelect, playersList, colorRow, addBotBtn, startBtn, waitingNote, builderBtn, chatBox,
-        settingsForm, lastView: view, builtin: null, saved: null, send,
+        settingsForm, lastView: view, builtin: null, saved: null, send, fillMaps,
     };
     ui = state;
     loadMaps();
@@ -192,12 +198,7 @@ function update(u, view) {
     setIfIdle(f.islandBonus.input, s.islandBonus);
     setIfIdle(f.randomizeTurnOrder.input, s.randomizeTurnOrder);
     setIfIdle(u.sbp, s.specialBuildPhase);
-    if (u.builtin) {
-        if (document.activeElement !== u.mapSelect) {
-            u.mapSelect.value = s.map;
-            if (u.mapSelect.value !== s.map) u.mapSelect.dispatchEvent(new Event('focus'));
-        }
-    }
+    if (u.builtin && document.activeElement !== u.mapSelect) u.fillMaps();
     f.islandBonus.el.hidden = !s.expansions.seafarers;
     f.ships.el.hidden = !s.expansions.seafarers;
     for (const input of u.settingsForm.querySelectorAll('input, select')) input.disabled = !isHost;

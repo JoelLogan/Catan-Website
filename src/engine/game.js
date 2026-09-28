@@ -537,9 +537,10 @@ export class Game {
             const idx = s.current;
             const setup = s.setup;
             if (setup.step === 'road') {
+                const left = this.piecesLeft(idx);
                 const any = [...this.graph.edges.keys()].some(
-                    (e) => this.canPlaceRoad(idx, e, { fromVertex: setup.lastVertex }) ||
-                        this.canPlaceShip(idx, e, { fromVertex: setup.lastVertex }),
+                    (e) => (left.roads > 0 && this.canPlaceRoad(idx, e, { fromVertex: setup.lastVertex })) ||
+                        (left.ships > 0 && this.canPlaceShip(idx, e, { fromVertex: setup.lastVertex })),
                 );
                 if (any) return;
                 this.log(`${this.name(idx)} has nowhere to place a road.`);

@@ -17,7 +17,7 @@ export default [
             'no-new-func': 'error',
         },
     },
-    { files: ['src/**/*.js', 'test/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
+    { files: ['src/**/*.js', 'test/**/*.js', 'scripts/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
     { files: ['public/**/*.js'], languageOptions: { globals: { ...globals.browser, io: 'readonly' } } },
     { files: ['shared/**/*.js'], languageOptions: { globals: {} } },
     { files: ['e2e/**/*.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
