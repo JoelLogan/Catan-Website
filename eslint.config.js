@@ -5,7 +5,7 @@ export default [
     { ignores: ['node_modules/', 'data/', 'coverage/'] },
     js.configs.recommended,
     {
-        files: ['**/*.js'],
+        files: ['**/*.js', '**/*.mjs'],
         languageOptions: { ecmaVersion: 2024, sourceType: 'module' },
         rules: {
             'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
@@ -20,5 +20,5 @@ export default [
     { files: ['src/**/*.js', 'test/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
     { files: ['public/**/*.js'], languageOptions: { globals: { ...globals.browser, io: 'readonly' } } },
     { files: ['shared/**/*.js'], languageOptions: { globals: {} } },
-    { files: ['e2e/**/*.js'], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
+    { files: ['e2e/**/*.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
 ];
