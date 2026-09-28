@@ -969,6 +969,7 @@ const ACTIONS = {
             return;
         }
         this.requireTurn(idx, ['main']);
+        if (this.citiesKnights) ck.beforeEndTurn(this, idx);
         this.endTurnNow();
     },
 
@@ -1059,7 +1060,6 @@ const ACTIONS = {
         assert(s.bank[get] >= count, `The bank has only ${s.bank[get]} ${label(get)}`);
         transfer(s.players[idx].hand, s.bank, cost);
         this.give(idx, { [get]: count });
-        if (this.citiesKnights) ck.afterMaritimeTrade(this, idx);
         this.log(`${this.name(idx)} trades ${ratio * count} ${label(give)} for ${count} ${label(get)} with the bank.`);
     },
 

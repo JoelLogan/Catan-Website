@@ -14,10 +14,15 @@ const configs = [
     { players: 8, map: 'huge' },
     { players: 4, map: 'islands', settings: { expansions: { seafarers: true }, victoryPoints: 12 } },
     { players: 3, map: 'standard', settings: { expansions: { seafarers: true } } },
+    { players: 3, map: 'standard', settings: { expansions: { citiesKnights: true }, victoryPoints: 13 } },
+    { players: 4, map: 'standard', settings: { expansions: { citiesKnights: true }, victoryPoints: 13 } },
+    { players: 6, map: 'large', settings: { expansions: { citiesKnights: true }, victoryPoints: 13 } },
+    { players: 4, map: 'islands', settings: { expansions: { citiesKnights: true, seafarers: true }, victoryPoints: 14 } },
 ];
 
 for (const cfg of configs) {
-    const label = `${cfg.players}p ${cfg.map}${cfg.settings?.expansions?.seafarers ? ' seafarers' : ''}`;
+    const exp = cfg.settings?.expansions || {};
+    const label = `${cfg.players}p ${cfg.map}${exp.seafarers ? ' seafarers' : ''}${exp.citiesKnights ? ' C&K' : ''}`;
     test(`bots finish games: ${label}`, () => {
         for (let seed = 1; seed <= 6; seed++) {
             const game = newGame({ ...cfg, seed });
