@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Ore/Mountains hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="#8a8a9a" stroke="#5a5a6a" stroke-width="2"/>
+  <!-- Mountains -->
+  <g opacity="0.8">
+    <path d="M20 65 L35 35 L50 55 L40 65 Z" fill="#6a6a7a" stroke="#4a4a5a" stroke-width="1"/>
+    <path d="M40 65 L50 40 L65 50 L60 65 Z" fill="#7a7a8a" stroke="#4a4a5a" stroke-width="1"/>
+    <path d="M60 65 L70 45 L85 65 Z" fill="#6a6a7a" stroke="#4a4a5a" stroke-width="1"/>
+    <!-- Snow caps -->
+    <path d="M35 35 L40 40 L30 40 Z" fill="#e0e0f0"/>
+    <path d="M50 40 L55 45 L45 45 Z" fill="#e0e0f0"/>
+    <path d="M70 45 L75 50 L65 50 Z" fill="#e0e0f0"/>
+  </g>
+  <!-- Ore crystals -->
+  <g opacity="0.6">
+    <path d="M25 55 L27 50 L29 55 Z" fill="#4a4a5a"/>
+    <path d="M72 60 L74 55 L76 60 Z" fill="#4a4a5a"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Gold field hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" fill="#e9b949" stroke="#b8862b" stroke-width="2"/>
+  <g opacity="0.55">
+    <path d="M18 62 Q 30 48 42 60 T 66 58 T 86 62 L86 70 L50 92 L14 70 Z" fill="#c9952e"/>
+  </g>
+  <!-- Nuggets -->
+  <g stroke="#9a6a1c" stroke-width="1.2">
+    <path d="M32 40 L38 35 L44 38 L42 45 L35 46 Z" fill="#ffd95a"/>
+    <path d="M54 30 L61 27 L66 33 L61 39 L55 37 Z" fill="#ffe27a"/>
+    <path d="M60 50 L68 47 L72 54 L66 59 L59 56 Z" fill="#ffd95a"/>
+  </g>
+  <!-- Sparkles -->
+  <g fill="#fffbe6">
+    <path d="M28 28 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2 Z"/>
+    <path d="M74 36 l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 Z"/>
+  </g>
+</svg>

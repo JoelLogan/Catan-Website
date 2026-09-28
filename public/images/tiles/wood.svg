@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <filter id="ghibli-texture">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" />
+      <feColorMatrix type="saturate" values="0.3"/>
+    </filter>
+  </defs>
+  <!-- Forest/Wood hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="#4a7c4e" stroke="#2d5a31" stroke-width="2"/>
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="url(#wood-pattern)" opacity="0.3"/>
+  <defs>
+    <pattern id="wood-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="2" fill="#2d5a31" opacity="0.5"/>
+    </pattern>
+  </defs>
+  <!-- Trees -->
+  <g opacity="0.8">
+    <ellipse cx="30" cy="40" rx="8" ry="12" fill="#2d5a31"/>
+    <rect x="28" y="45" width="4" height="8" fill="#5a3a2a"/>
+    <ellipse cx="50" cy="35" rx="10" ry="14" fill="#2d5a31"/>
+    <rect x="47" y="42" width="6" height="10" fill="#5a3a2a"/>
+    <ellipse cx="70" cy="45" rx="9" ry="13" fill="#2d5a31"/>
+    <rect x="68" y="52" width="4" height="8" fill="#5a3a2a"/>
+  </g>
+</svg>

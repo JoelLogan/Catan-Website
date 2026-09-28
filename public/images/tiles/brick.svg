@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Brick/Clay hex -->
+  <path d="M50 5 L90 30 L90 70 L50 95 L10 70 L10 30 Z" 
+        fill="#c85a3a" stroke="#8a3a2a" stroke-width="2"/>
+  <!-- Brick pattern -->
+  <g opacity="0.6">
+    <rect x="15" y="25" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="40" y="25" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="65" y="25" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="27" y="35" width="20" height="8" fill="#b05a3a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="52" y="35" width="20" height="8" fill="#b05a3a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="15" y="45" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="40" y="45" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="65" y="45" width="20" height="8" fill="#a04a2a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="27" y="55" width="20" height="8" fill="#b05a3a" stroke="#7a2a1a" stroke-width="0.5"/>
+    <rect x="52" y="55" width="20" height="8" fill="#b05a3a" stroke="#7a2a1a" stroke-width="0.5"/>
+  </g>
+</svg>
