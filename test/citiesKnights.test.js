@@ -322,6 +322,31 @@ describe('progress cards', () => {
         assert.equal(g.state.players[0].ck.progress.length, 1, 'invalid play keeps the card');
     });
 
+    test('prototype property names are rejected as locations', () => {
+        const g = ckGame();
+        toMain(g);
+        for (const type of Object.keys(PROGRESS_DECKS.politics).concat(Object.keys(PROGRESS_DECKS.science), Object.keys(PROGRESS_DECKS.trade))) {
+            const deck = Object.values(g.state.ck.decks).find((d) => d.some((c) => c.type === type));
+            const i = deck.findIndex((c) => c.type === type);
+            g.state.players[0].ck.progress.push(deck.splice(i, 1)[0]);
+        }
+        setHand(g, 0, { wood: 5, brick: 5, sheep: 5, wheat: 5, ore: 5, paper: 5, cloth: 5, coin: 5 });
+        const snapshot = JSON.stringify(g.state);
+        for (const bad of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+            for (const action of [
+                { type: 'buildKnight', at: bad }, { type: 'promoteKnight', at: bad }, { type: 'activateKnight', at: bad },
+                { type: 'moveKnight', from: bad, to: bad }, { type: 'chaseRobber', at: bad }, { type: 'buildCityWall', at: bad },
+                { type: 'playProgress', card: 'intrigue', at: bad }, { type: 'playProgress', card: 'engineer', at: bad },
+                { type: 'playProgress', card: 'medicine', at: bad }, { type: 'playProgress', card: 'smith', knights: [bad] },
+                { type: 'playProgress', card: 'diplomat', edge: bad }, { type: 'build', piece: 'city', at: bad },
+                { type: 'playProgress', card: bad },
+            ]) {
+                rejects(() => act(g, 0, action));
+            }
+        }
+        assert.equal(JSON.stringify(g.state), snapshot);
+    });
+
     test('progress hand limit is enforced at end of turn', () => {
         const g = ckGame();
         toMain(g);

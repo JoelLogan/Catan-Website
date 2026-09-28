@@ -135,6 +135,11 @@ export class Game {
     }
 
     constructor(state, rng) {
+        // Maps keyed by client-supplied ids must not inherit from Object.prototype,
+        // so lookups like buildings["constructor"] are simply undefined.
+        state.buildings = Object.assign(Object.create(null), state.buildings);
+        state.roads = Object.assign(Object.create(null), state.roads);
+        if (state.knights) state.knights = Object.assign(Object.create(null), state.knights);
         this.state = state;
         this.rng = rng;
         this.graph = buildGraph(state.board.hexes);

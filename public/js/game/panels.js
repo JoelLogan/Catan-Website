@@ -115,7 +115,11 @@ export function renderActions(s) {
     const g = s.game;
     const el = s.els.actions;
     clear(el);
-    if (g.me < 0 || g.phase === 'finished') return;
+    if (g.phase === 'finished') {
+        el.append(...panel('Game over', h('button.primary.big', { type: 'button', onclick: () => dialogs.winner(s) }, '🏆 Show results')));
+        return;
+    }
+    if (g.me < 0) return;
     const w = g.waiting;
     const mine = w.players.includes(g.me);
     const hand = g.private.hand;

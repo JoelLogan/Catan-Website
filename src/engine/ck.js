@@ -70,7 +70,7 @@ export function initState(game) {
         }
         decks[track] = shuffle(game.rng, cards);
     }
-    s.knights = {}; // vertexId -> {owner, level, active, activatedTurn, actedTurn, promotedTurn}
+    s.knights = Object.create(null); // vertexId -> {owner, level, active, activatedTurn, actedTurn, promotedTurn}
     s.ck = {
         barbarian: 0,
         attacks: 0,

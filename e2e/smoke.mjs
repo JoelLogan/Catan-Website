@@ -101,6 +101,8 @@ try {
             if (!/detached|not attached|Timeout|not visible|intercepts pointer/i.test(err.message)) throw err;
         }
     }
+    // The results dialog opens automatically; it may have been dismissed, so it can be reopened.
+    if (!(await page.$('.overlay:has-text("Game over")'))) await page.click('button:has-text("Show results")');
     await page.waitForSelector('.overlay:has-text("Game over")');
     assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
     console.log('✓ smoke test passed: a full game was played through the UI');
