@@ -19,6 +19,7 @@
         <header class="topbar">
             <a class="brand" href="/" id="brand-link">🏝️ <span>Catan Online</span></a>
             <div class="topbar-right">
+                <button class="icon-btn" id="theme-btn" type="button" aria-label="Toggle day/dusk theme" title="Day / dusk">🌙</button>
                 <button class="icon-btn" id="help-btn" type="button" aria-label="How to play">?</button>
                 <span id="conn-status" class="conn" role="status" aria-live="polite">Connecting…</span>
             </div>
@@ -26,6 +27,8 @@
 
         <main>
             <section id="screen-home" class="screen active" aria-labelledby="home-title">
+                <div class="sea" aria-hidden="true"></div>
+                <div class="hero-board" aria-hidden="true"><canvas id="hero-canvas"></canvas></div>
                 <div class="card home-card">
                     <h1 id="home-title">Catan Online</h1>
                     <p class="tagline">Build, trade and settle with friends — right in your browser.</p>

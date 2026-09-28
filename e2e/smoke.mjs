@@ -60,9 +60,9 @@ async function step(page) {
         const p = await target(page);
         if (p) return page.mouse.click(p.x, p.y);
     }
-    if (st.kind === 'preRoll') return page.click('button:has-text("Roll dice")', opts);
-    if (st.kind === 'main') return page.click('.action-grid button:has-text("End turn")', opts);
-    if (st.kind === 'specialBuild') return page.click('.action-grid button:has-text("Done building")', opts);
+    if (st.kind === 'preRoll') return page.click('.action-bar button:has-text("Roll")', opts);
+    if (st.kind === 'main') return page.click('.action-bar button:has-text("End turn")', opts);
+    if (st.kind === 'specialBuild') return page.click('.action-bar button:has-text("Done")', opts);
     return page.waitForTimeout(50);
 }
 

@@ -58,6 +58,11 @@ function hexPath(ctx, cx, cy, r) {
 }
 
 const pips = (n) => 6 - Math.abs(7 - n);
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
+const easeOut = (t) => 1 - (1 - t) ** 3;
+const clamp01 = (t) => Math.max(0, Math.min(1, t));
+const NO_FX = Object.freeze({ scale: 1, alpha: 1, dy: 0 });
 
 export class BoardRenderer {
     constructor(canvas, { builder = false } = {}) {
@@ -75,6 +80,9 @@ export class BoardRenderer {
         this.pending = false;
         this.onPaint = null; // builder: (hexCoords, isDrag) => void
         this.ghostRadius = 0; // builder: show empty grid positions
+        this.insets = { top: 0, right: 0, bottom: 0, left: 0 }; // space covered by overlays
+        this.anims = []; // active animations (see animate())
+        this.revealAt = 0; // start time of the tile-reveal animation
 
         loadImages(() => this.requestDraw());
         this.bindEvents();
@@ -90,10 +98,92 @@ export class BoardRenderer {
     // ------------------------------------------------------------ data
 
     setData(data) {
-        const firstBoard = !this.data.hexes.length && data.hexes && data.hexes.length;
+        const prev = this.data;
+        const firstBoard = !prev.hexes.length && data.hexes && data.hexes.length;
         this.data = data;
+        if (firstBoard) {
+            if (!this.builder && !reducedMotion()) this.revealAt = performance.now();
+        } else if (!reducedMotion()) {
+            this.diffAnimations(prev, data);
+        }
         if (firstBoard || !this.userMoved) this.fit();
         this.requestDraw();
+    }
+
+    /** Queue animations for everything that changed between two data snapshots. */
+    diffAnimations(prev, data) {
+        const now = performance.now();
+        const diff = (prevMap = {}, nextMap = {}, prefix, changed) => {
+            for (const id in nextMap) {
+                if (!prevMap[id] || changed(prevMap[id], nextMap[id])) this.animate({ type: 'place', key: `${prefix}:${id}`, owner: nextMap[id].owner, at: prefix === 'r' ? edgePos(id) : vertexPos(id) }, now);
+            }
+            for (const id in prevMap) {
+                if (!nextMap[id]) this.animate({ type: 'remove', key: `${prefix}:${id}`, id, piece: prevMap[id], prefix, duration: 450 }, now);
+            }
+        };
+        diff(prev.buildings, data.buildings, 'b', (a, b) => a.type !== b.type || a.owner !== b.owner || (!a.wall && b.wall));
+        diff(prev.roads, data.roads, 'r', (a, b) => a.owner !== b.owner || a.type !== b.type);
+        diff(prev.knights, data.knights, 'k', (a, b) => a.owner !== b.owner || a.level !== b.level || (!a.active && b.active));
+        for (const piece of ['robber', 'pirate']) {
+            const from = prev[piece];
+            const to = data[piece];
+            if (from !== to && to !== null && to !== undefined && data.hexes[to]) {
+                const start = from !== null && from !== undefined && prev.hexes[from] ? hexPos(prev.hexes[from]) : null;
+                this.animate({ type: 'slide', key: piece, from: start, duration: 700 }, now);
+            }
+        }
+        if (this.builder) {
+            const before = new Map(prev.hexes.map((h) => [hexKey(h.q, h.r), h.t ?? h.terrain]));
+            for (const h of data.hexes) {
+                if (before.get(hexKey(h.q, h.r)) !== (h.t ?? h.terrain)) this.animate({ type: 'tile', key: `h:${hexKey(h.q, h.r)}`, duration: 320 }, now);
+            }
+        }
+    }
+
+    /** Start an animation. {type, key, duration} plus type-specific fields. */
+    animate(anim, now = performance.now()) {
+        if (reducedMotion()) return;
+        this.anims = this.anims.filter((a) => a.key !== anim.key || a.type !== anim.type);
+        this.anims.push({ duration: 600, ...anim, start: now });
+        this.requestDraw();
+    }
+
+    /** Make hexes glow (e.g. the tiles that produced on a roll). */
+    flashHexes(indices, color = '255, 226, 120') {
+        for (const i of indices) this.animate({ type: 'glow', key: `g:${i}`, hex: i, color, duration: 1700 });
+    }
+
+    /** Animation progress (0..1) for a key/type, or null. */
+    progress(key, type, now) {
+        const a = this.anims.find((x) => x.key === key && x.type === type);
+        return a ? { t: clamp01((now - a.start) / a.duration), a } : null;
+    }
+
+    pieceFx(key, now) {
+        const p = this.progress(key, 'place', now);
+        if (!p) return NO_FX;
+        return { scale: Math.max(0.01, easeOutBack(p.t)), alpha: clamp01(p.t * 3), dy: -(1 - easeOut(p.t)) * 26 };
+    }
+
+    /** Viewport coordinates of a world point (for DOM effects). */
+    toScreen(p) {
+        const r = this.canvas.getBoundingClientRect();
+        return { x: r.left + this.offset.x + p.x * this.scale, y: r.top + this.offset.y + p.y * this.scale };
+    }
+
+    hexScreen(i) {
+        const h = this.data.hexes[i];
+        return h ? this.toScreen(hexPos(h)) : null;
+    }
+
+    vertexScreen(id) {
+        return this.toScreen(vertexPos(id));
+    }
+
+    setInsets(insets) {
+        const changed = ['top', 'right', 'bottom', 'left'].some((k) => (insets[k] || 0) !== this.insets[k]);
+        this.insets = { top: 0, right: 0, bottom: 0, left: 0, ...insets };
+        if (changed && !this.userMoved) this.fit();
     }
 
     setTargets(targets) {
@@ -127,8 +217,11 @@ export class BoardRenderer {
     }
 
     bounds() {
-        const hexes = this.data.hexes;
+        // In games, frame the land (plus room for harbors) rather than the whole sea ring.
+        const land = this.builder ? [] : this.data.hexes.filter((h) => (h.terrain ?? h.t) !== 'sea');
+        const hexes = land.length ? land : this.data.hexes;
         if (!hexes.length) return { minX: -200, maxX: 200, minY: -200, maxY: 200 };
+        const margin = land.length ? SIZE * 0.8 : 0;
         let minX = Infinity;
         let maxX = -Infinity;
         let minY = Infinity;
@@ -140,17 +233,20 @@ export class BoardRenderer {
             minY = Math.min(minY, p.y - SIZE);
             maxY = Math.max(maxY, p.y + SIZE);
         }
-        return { minX, maxX, minY, maxY };
+        return { minX: minX - margin, maxX: maxX + margin, minY: minY - margin, maxY: maxY + margin };
     }
 
     fit() {
         if (!this.cssW) return;
         const b = this.bounds();
-        const pad = 20;
-        const s = Math.min((this.cssW - pad * 2) / (b.maxX - b.minX), (this.cssH - pad * 2) / (b.maxY - b.minY));
+        const pad = 12;
+        const ins = this.insets;
+        const availW = Math.max(120, this.cssW - ins.left - ins.right - pad * 2);
+        const availH = Math.max(120, this.cssH - ins.top - ins.bottom - pad * 2);
+        const s = Math.min(availW / (b.maxX - b.minX), availH / (b.maxY - b.minY));
         this.scale = Math.max(0.2, Math.min(3, s));
-        this.offset.x = this.cssW / 2 - ((b.minX + b.maxX) / 2) * this.scale;
-        this.offset.y = this.cssH / 2 - ((b.minY + b.maxY) / 2) * this.scale;
+        this.offset.x = ins.left + pad + availW / 2 - ((b.minX + b.maxX) / 2) * this.scale;
+        this.offset.y = ins.top + pad + availH / 2 - ((b.minY + b.maxY) / 2) * this.scale;
         this.requestDraw();
     }
 
@@ -318,26 +414,170 @@ export class BoardRenderer {
     draw() {
         const ctx = this.ctx;
         const dpr = this.dpr || 1;
+        const now = performance.now();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.setTransform(dpr * this.scale, 0, 0, dpr * this.scale, dpr * this.offset.x, dpr * this.offset.y);
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
+        this.now = now;
 
         const d = this.data;
+        const revealing = this.revealAt && now - this.revealAt < 2600;
+        if (!revealing) this.revealAt = 0;
         if (this.builder) this.drawGhostGrid();
-        d.hexes.forEach((h, i) => this.drawHex(h, i));
-        (d.ports || []).forEach((p) => this.drawPort(p));
+        this.drawLandShadow(revealing ? clamp01((now - this.revealAt - 600) / 1200) : 1);
+        d.hexes.forEach((h, i) => this.withHexFx(h, i, now, () => this.drawHex(h, i)));
+        for (const a of this.anims) if (a.type === 'glow') this.drawGlow(a, now);
+        (d.ports || []).forEach((p) => this.withFade(revealing ? clamp01((now - this.revealAt - 1200) / 500) : 1, () => this.drawPort(p)));
         d.hexes.forEach((h, i) => {
-            if (h.number) this.drawNumber(h, i);
+            if (h.number) this.withHexFx(h, i, now, () => this.drawNumber(h, i), 300);
         });
         if (d.merchant) this.drawMerchant(d.merchant);
-        if (d.robber !== null && d.robber !== undefined && d.hexes[d.robber]) this.drawRobber(d.hexes[d.robber], d.robberActive !== false);
-        if (d.pirate !== null && d.pirate !== undefined && d.hexes[d.pirate]) this.drawPirate(d.hexes[d.pirate]);
-        for (const [id, r] of Object.entries(d.roads || {})) this.drawRoute(id, r.type, this.color(r.owner));
-        for (const [id, k] of Object.entries(d.knights || {})) this.drawKnight(id, k, this.color(k.owner));
-        for (const [id, b] of Object.entries(d.buildings || {})) this.drawBuilding(id, b, this.color(b.owner), d.metropolisAt?.[id]);
-        this.drawTargets();
+        if (d.robber !== null && d.robber !== undefined && d.hexes[d.robber]) {
+            this.drawRobber(this.slidePos('robber', hexPos(d.hexes[d.robber]), now), d.robberActive !== false);
+        }
+        if (d.pirate !== null && d.pirate !== undefined && d.hexes[d.pirate]) {
+            this.drawPirate(this.slidePos('pirate', hexPos(d.hexes[d.pirate]), now));
+        }
+        for (const [id, r] of Object.entries(d.roads || {})) {
+            this.withPieceFx(edgePos(id), this.pieceFx(`r:${id}`, now), () => this.drawRoute(id, r.type, this.color(r.owner)));
+        }
+        for (const [id, k] of Object.entries(d.knights || {})) {
+            this.withPieceFx(vertexPos(id), this.pieceFx(`k:${id}`, now), () => this.drawKnight(id, k, this.color(k.owner)));
+        }
+        for (const [id, b] of Object.entries(d.buildings || {})) {
+            this.withPieceFx(vertexPos(id), this.pieceFx(`b:${id}`, now), () => this.drawBuilding(id, b, this.color(b.owner), d.metropolisAt?.[id]));
+        }
+        for (const a of this.anims) {
+            const t = clamp01((now - a.start) / a.duration);
+            if (a.type === 'remove') this.drawRemoved(a, t);
+            if (a.type === 'place') this.drawRipple(a, t);
+        }
+        this.drawTargets(now);
+
+        this.anims = this.anims.filter((a) => now - a.start < a.duration);
+        if (this.anims.length || revealing || (this.targets && !reducedMotion())) this.requestDraw();
+    }
+
+    withFade(alpha, fn) {
+        if (alpha <= 0) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha *= alpha;
+        fn();
+        ctx.restore();
+    }
+
+    /** Scale/fade a hex (and its token) for the start-of-game reveal or a builder paint. */
+    withHexFx(h, i, now, fn, extraDelay = 0) {
+        let t = 1;
+        if (this.revealAt) {
+            const p = hexPos(h);
+            const delay = Math.hypot(p.x, p.y) * 2.2 + extraDelay + (i % 5) * 25;
+            t = clamp01((now - this.revealAt - delay) / 520);
+        }
+        const tile = this.builder ? this.progress(`h:${hexKey(h.q, h.r)}`, 'tile', now) : null;
+        if (tile) t = Math.min(t, tile.t);
+        if (t >= 1) return fn();
+        if (t <= 0) return;
+        const p = hexPos(h);
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        const sc = easeOutBack(t);
+        ctx.scale(sc, sc);
+        ctx.translate(-p.x, -p.y);
+        ctx.globalAlpha *= clamp01(t * 2);
+        fn();
+        ctx.restore();
+    }
+
+    withPieceFx(pos, fx, fn) {
+        if (fx === NO_FX) return fn();
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(pos.x, pos.y + fx.dy);
+        ctx.scale(fx.scale, fx.scale);
+        ctx.translate(-pos.x, -pos.y);
+        ctx.globalAlpha *= fx.alpha;
+        fn();
+        ctx.restore();
+    }
+
+    slidePos(key, to, now) {
+        const p = this.progress(key, 'slide', now);
+        if (!p || !p.a.from) {
+            if (p) return { x: to.x, y: to.y - (1 - easeOut(p.t)) * 60 };
+            return to;
+        }
+        const t = easeOut(p.t);
+        const from = p.a.from;
+        return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t - Math.sin(Math.PI * t) * 45 };
+    }
+
+    drawLandShadow(alpha) {
+        if (alpha <= 0) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = 0.35 * alpha;
+        ctx.fillStyle = '#0b2e45';
+        ctx.shadowColor = 'rgba(5, 30, 50, 0.9)';
+        ctx.shadowBlur = 18;
+        ctx.shadowOffsetY = 6;
+        for (const h of this.data.hexes) {
+            const t = h.terrain ?? h.t;
+            if (t === 'sea') continue;
+            const p = hexPos(h);
+            hexPath(ctx, p.x, p.y + 3, SIZE);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    drawGlow(a, now) {
+        const h = this.data.hexes[a.hex];
+        if (!h) return;
+        const t = clamp01((now - a.start) / a.duration);
+        const pulse = Math.sin(Math.PI * t) * (0.65 + 0.35 * Math.sin(t * Math.PI * 6));
+        const p = hexPos(h);
+        const ctx = this.ctx;
+        ctx.save();
+        hexPath(ctx, p.x, p.y, SIZE - 2);
+        ctx.fillStyle = `rgba(${a.color}, ${0.45 * pulse})`;
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = `rgba(${a.color}, ${0.9 * pulse})`;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    drawRipple(a, t) {
+        const ctx = this.ctx;
+        const color = this.color(a.owner);
+        ctx.save();
+        for (const k of [0, 0.25]) {
+            const tt = clamp01((t - k) / (1 - k));
+            if (tt <= 0 || tt >= 1) continue;
+            ctx.beginPath();
+            ctx.arc(a.at.x, a.at.y, 8 + 38 * easeOut(tt), 0, Math.PI * 2);
+            ctx.lineWidth = 4 * (1 - tt) + 1;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.8 * (1 - tt);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    drawRemoved(a, t) {
+        const color = this.color(a.piece.owner);
+        const pos = a.prefix === 'r' ? edgePos(a.id) : vertexPos(a.id);
+        const fx = { scale: 1 + 0.4 * t, alpha: 1 - t, dy: -12 * t };
+        this.withPieceFx(pos, fx, () => {
+            if (a.prefix === 'r') this.drawRoute(a.id, a.piece.type, color);
+            else if (a.prefix === 'k') this.drawKnight(a.id, a.piece, color);
+            else this.drawBuilding(a.id, a.piece, color, null);
+        });
     }
 
     drawGhostGrid() {
@@ -361,8 +601,10 @@ export class BoardRenderer {
         const ctx = this.ctx;
         const p = hexPos(h);
         const terrain = h.terrain ?? h.t;
+        const sea = terrain === 'sea';
         ctx.save();
         hexPath(ctx, p.x, p.y, SIZE + 0.5);
+        ctx.globalAlpha = sea ? 0.5 : 1;
         ctx.fillStyle = TERRAIN_COLOR[terrain] || '#999';
         ctx.fill();
         const img = images[terrain];
@@ -373,9 +615,25 @@ export class BoardRenderer {
             ctx.drawImage(img, p.x - w / 2, p.y - hh / 2, w, hh);
         }
         ctx.restore();
+        if (!sea) {
+            // Soft light from the top-left gives the tiles some depth.
+            ctx.save();
+            hexPath(ctx, p.x, p.y, SIZE);
+            const g = ctx.createLinearGradient(p.x - SIZE, p.y - SIZE, p.x + SIZE, p.y + SIZE);
+            g.addColorStop(0, 'rgba(255,255,255,0.22)');
+            g.addColorStop(0.55, 'rgba(255,255,255,0)');
+            g.addColorStop(1, 'rgba(40,25,10,0.22)');
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.restore();
+            hexPath(ctx, p.x, p.y, SIZE - 2.5);
+            ctx.strokeStyle = 'rgba(255,250,235,0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
         hexPath(ctx, p.x, p.y, SIZE);
-        ctx.strokeStyle = terrain === 'sea' ? 'rgba(40,90,140,0.35)' : 'rgba(60,45,30,0.55)';
-        ctx.lineWidth = terrain === 'sea' ? 1 : 2;
+        ctx.strokeStyle = sea ? 'rgba(255,255,255,0.18)' : 'rgba(70,50,30,0.7)';
+        ctx.lineWidth = sea ? 1 : 2.2;
         ctx.stroke();
         if (this.data.dimHexes && this.data.dimHexes.has(i)) {
             hexPath(ctx, p.x, p.y, SIZE);
@@ -570,9 +828,8 @@ export class BoardRenderer {
         ctx.restore();
     }
 
-    drawRobber(hex, active) {
+    drawRobber(p, active) {
         const ctx = this.ctx;
-        const p = hexPos(hex);
         ctx.save();
         ctx.translate(p.x + SIZE * 0.42, p.y - SIZE * 0.05);
         ctx.globalAlpha = active ? 1 : 0.5;
@@ -591,9 +848,8 @@ export class BoardRenderer {
         ctx.restore();
     }
 
-    drawPirate(hex) {
+    drawPirate(p) {
         const ctx = this.ctx;
-        const p = hexPos(hex);
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.fillStyle = '#1d1b20';
@@ -637,16 +893,17 @@ export class BoardRenderer {
         ctx.restore();
     }
 
-    drawTargets() {
+    drawTargets(now = performance.now()) {
         const t = this.targets;
         if (!t) return;
         const ctx = this.ctx;
         const hov = this.hover;
+        const pulse = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(now / 260);
         ctx.save();
         const ring = (x, y, r, on) => {
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fillStyle = on ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)';
+            ctx.arc(x, y, on ? r : r * (0.85 + 0.3 * pulse), 0, Math.PI * 2);
+            ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : `rgba(255,255,255,${0.35 + 0.35 * pulse})`;
             ctx.fill();
             ctx.lineWidth = 2;
             ctx.strokeStyle = on ? '#2b2118' : 'rgba(43,33,24,0.6)';
@@ -660,7 +917,8 @@ export class BoardRenderer {
                 const on = hov && hov.type === 'hex' && hov.id === i;
                 hexPath(ctx, p.x, p.y, SIZE - 4);
                 ctx.lineWidth = on ? 5 : 3;
-                ctx.strokeStyle = on ? '#fff' : 'rgba(255,255,255,0.7)';
+                ctx.strokeStyle = on ? '#fff' : `rgba(255,255,255,${0.45 + 0.45 * pulse})`;
+                if (!on) ctx.lineDashOffset = -now / 40;
                 ctx.setLineDash(on ? [] : [8, 6]);
                 ctx.stroke();
             }
@@ -671,7 +929,7 @@ export class BoardRenderer {
                 const on = hov && hov.type === 'edge' && hov.id === id;
                 if (on && t.preview) continue;
                 const e = edgePos(id);
-                ring(e.x, e.y, on ? 8 : 5, on);
+                ring(e.x, e.y, Math.max(on ? 8 : 5, (on ? 11 : 7) / this.scale), on);
             }
         }
         if (t.vertices) {
@@ -679,7 +937,7 @@ export class BoardRenderer {
                 const on = hov && hov.type === 'vertex' && hov.id === id;
                 if (on && t.preview) continue;
                 const p = vertexPos(id);
-                ring(p.x, p.y, on ? 10 : 6.5, on);
+                ring(p.x, p.y, Math.max(on ? 10 : 6.5, (on ? 13 : 8) / this.scale), on);
             }
         }
         // Ghost preview of the piece under the cursor.

@@ -6,6 +6,8 @@ import { renderLobby } from './lobby.js';
 import { GameScreen } from './game/screen.js';
 import { MapBuilder } from './builder.js';
 import { helpContent } from './help.js';
+import { startHero } from './hero.js';
+import { toggleTheme } from './game/screen.js';
 
 const app = {
     view: null, // latest room:state
@@ -136,7 +138,22 @@ function setConn(text, ok) {
     el.classList.toggle('ok', ok);
 }
 
+function syncThemeButton() {
+    $('#theme-btn').textContent = document.documentElement.dataset.theme === 'dusk' ? '☀️' : '🌙';
+}
+
 function init() {
+    document.documentElement.dataset.theme = store.getPref('theme', 'day') === 'dusk' ? 'dusk' : 'day';
+    syncThemeButton();
+    $('#theme-btn').addEventListener('click', () => {
+        toggleTheme();
+        syncThemeButton();
+    });
+    try {
+        startHero($('#hero-canvas'));
+    } catch {
+        // purely decorative
+    }
     $('#home-name').value = store.getName();
     $('#create-btn').addEventListener('click', createGame);
     $('#join-btn').addEventListener('click', () => joinGame());

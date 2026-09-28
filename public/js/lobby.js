@@ -2,7 +2,6 @@
 import { h, clear, toast } from './dom.js';
 import * as net from './net.js';
 import * as store from './store.js';
-import { swatch } from './labels.js';
 import { PLAYER_COLORS, COLOR_HEX, LIMITS } from '/shared/constants.js';
 import { renderChat } from './chat.js';
 
@@ -209,7 +208,7 @@ function update(u, view) {
     for (const m of room.members) {
         const canKick = isHost && m.id !== room.you;
         u.playersList.append(h('li.member', { class: m.id === room.you ? 'me' : '' },
-            swatch(m.color),
+            h('span.avatar', { style: { background: COLOR_HEX[m.color] || '#999' } }, m.name.slice(0, 1).toUpperCase()),
             h('span.member-name', m.name),
             m.id === room.hostId ? h('span.tag', '👑 host') : null,
             m.isBot ? h('span.tag', 'bot') : null,
