@@ -14,7 +14,9 @@ A real-time multiplayer implementation of *The Settlers of Catan* that runs in t
 - **Cities & Knights.** Commodities, three city-improvement tracks with the Trading House, Fortress and Aqueduct, metropolises, knights (recruit, promote, activate, move, displace, chase the robber), barbarian attacks, the Defender of Catan, city walls, the event die, and all 54 progress cards.
 - **Map builder.** Paint sea, random land or fixed terrain (including gold); place and rotate harbors; add a sea border. Save maps to the server, open saved maps, or import/export JSON files. Built-in maps are provided for 3–4, 5–6 and 7–8 players, plus an islands map for Seafarers.
 - **Resilient sessions.** A reload or dropped connection resumes the game automatically. Players who stay away longer than the grace period are played safely by the server, so a game never stalls. Games survive server restarts.
-- **Responsive.** Works on desktop and phones: pinch/scroll zoom, drag to pan, and highlighted legal spots.
+- **Full-screen board.** The board fills the screen. Light overlays hold everything else: a player strip, a status pill, a bottom dock with your cards and actions, pop-up build trays, and a slide-out drawer for the log, chat, cards and game info. On phones the board gets the whole screen: pinch to zoom, drag to pan, and legal spots are highlighted.
+- **Animations.** Tiles reveal at the start, pieces drop onto the board with a ripple in their owner's color, and the robber and pirate slide between hexes. Dice tumble and the producing tiles glow. Cards fly between the board, the bank and players' hands for production, trades, steals, discards and dev-card purchases. All motion is disabled when the system asks for reduced motion.
+- **Day and dusk themes**, switchable from the top bar or the in-game menu.
 
 ## Quick start
 

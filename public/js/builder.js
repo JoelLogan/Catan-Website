@@ -74,35 +74,43 @@ export class MapBuilder {
         const fileInput = h('input', { type: 'file', accept: 'application/json,.json', hidden: true });
         fileInput.addEventListener('change', () => this.importFile(fileInput));
 
-        this.root.append(h('div.builder-layout',
-            h('aside.side.builder-tools',
-                h('h3', 'Tiles'), h('div.tool-grid', ...tiles),
-                h('h3', 'Harbors'), h('p.muted.small', 'Click a sea tile next to land. Click again to turn it.'), h('div.tool-grid', ...harbors),
-                h('h3', 'Other'), h('div.tool-grid', eraser, pan),
-                h('p.muted.small', 'Drag to paint. Right-drag or use ✋ to pan; scroll or pinch to zoom.')),
-            h('div.center',
-                h('div.builder-bar',
-                    h('button.ghost', { type: 'button', onclick: () => this.back() }, '← Back'),
-                    this.nameEl,
+        const group = (label, ...items) => h('div.tool-group', h('span.tool-group-label', label), h('div.tool-row', ...items));
+        this.top = h('div.builder-top',
+            h('div.builder-bar',
+                h('button.hud-btn', { type: 'button', 'aria-label': 'Back', title: 'Back', onclick: () => this.back() }, '←'),
+                this.nameEl,
+                h('div.builder-actions',
                     builtinSel,
-                    h('button', { type: 'button', onclick: () => this.addBorder() }, '🌊 Add sea border'),
-                    h('button', { type: 'button', onclick: () => this.save(false) }, '💾 Save'),
+                    h('button', { type: 'button', onclick: () => this.addBorder() }, '🌊 Sea border'),
+                    h('button.primary', { type: 'button', onclick: () => this.save(false) }, '💾 Save'),
                     h('button', { type: 'button', onclick: () => this.save(true) }, 'Save as…'),
                     h('button', { type: 'button', onclick: () => this.openSaved() }, '📂 Open'),
                     h('button', { type: 'button', onclick: () => fileInput.click() }, '⬆️ Import'),
                     h('button', { type: 'button', onclick: () => this.exportFile() }, '⬇️ Export'),
-                    fileInput),
-                this.statsEl,
-                h('div.board-wrap', this.canvas,
-                    h('div.zoom-controls',
-                        h('button.icon-btn', { type: 'button', 'aria-label': 'Zoom in', onclick: () => this.board.zoomBy(1.2) }, '+'),
-                        h('button.icon-btn', { type: 'button', 'aria-label': 'Zoom out', onclick: () => this.board.zoomBy(1 / 1.2) }, '−'),
-                        h('button.icon-btn', { type: 'button', 'aria-label': 'Reset view', onclick: () => this.board.resetView() }, '⤢')))),
+                    fileInput)),
+            this.statsEl);
+        this.palette = h('div.builder-palette',
+            group('Tiles', ...tiles),
+            group('Harbors · tap a coastal sea tile, tap again to turn', ...harbors),
+            group('Tools', eraser, pan));
+        this.root.append(h('div.builder',
+            h('div.sea'),
+            h('div.board-layer', this.canvas),
+            this.top,
+            h('div.hud-side.builder-zoom', h('div.zoom-controls',
+                h('button.hud-btn', { type: 'button', 'aria-label': 'Zoom in', onclick: () => this.board.zoomBy(1.2) }, '+'),
+                h('button.hud-btn', { type: 'button', 'aria-label': 'Zoom out', onclick: () => this.board.zoomBy(1 / 1.2) }, '−'),
+                h('button.hud-btn', { type: 'button', 'aria-label': 'Fit map', onclick: () => this.board.resetView() }, '⤢'))),
+            this.palette,
         ));
 
         this.board = new BoardRenderer(this.canvas, { builder: true });
         this.board.onPaint = (pos, isDrag) => this.paint(pos, isDrag);
         this.setTool(this.tool, this.toolButtons[1]);
+        new ResizeObserver(() => {
+            this.root.style.setProperty('--palette-h', `${this.palette.offsetHeight}px`);
+            this.board.setInsets({ top: this.top.offsetHeight + 12, bottom: this.palette.offsetHeight + 12, right: 52 });
+        }).observe(this.root);
     }
 
     activate() {

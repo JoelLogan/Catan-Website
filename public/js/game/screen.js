@@ -1,33 +1,46 @@
-// In-game screen: board, side panels, interaction modes and required dialogs.
-import { h, clear, toast, closeAllModals, confirmDialog } from '../dom.js';
+// In-game screen: a full-screen board with light overlays (player strip, status
+// pill, bottom dock, trays and a slide-out drawer), board-picking modes, required
+// dialogs, and the animations that make changes visible.
+import { h, clear, toast, closeAllModals, confirmDialog, modal } from '../dom.js';
 import { renderChat } from '../chat.js';
 import * as net from '../net.js';
 import { BoardRenderer } from '../board.js';
-import { COLOR_HEX } from '/shared/constants.js';
+import { COLOR_HEX, TERRAIN_RESOURCE } from '/shared/constants.js';
+import { helpContent } from '../help.js';
+import * as store from '../store.js';
+import * as fx from '../fx.js';
 import * as panels from './panels.js';
 import * as dialogs from './dialogs.js';
 
 const PIECE_LABEL = { settlement: 'settlement', city: 'city', road: 'road', ship: 'ship' };
+const DRAWER_TABS = [['log', 'Log'], ['chat', 'Chat'], ['cards', 'Cards'], ['info', 'Info']];
 
 export class GameScreen {
     constructor(root, { leave }) {
         this.root = root;
         this.leave = leave;
         this.view = null;
+        this.prevView = null;
         this.mode = null; // active board-picking mode
         this.required = null; // {key, close} of the dialog the game is waiting on
+        this.tray = null; // 'build' | 'knights' | null
+        this.drawerTab = null;
         this.lastLogId = 0;
         this.lastRollKey = null;
         this.winnerShown = false;
         this.build();
         this.onKey = (e) => {
-            if (e.key === 'Escape' && this.mode && this.mode.cancellable !== false && !document.querySelector('.overlay')) this.setMode(null);
+            if (e.key !== 'Escape' || document.querySelector('.overlay')) return;
+            if (this.tray) this.closeTray();
+            else if (this.drawerTab) this.closeDrawer();
+            else if (this.mode && this.mode.cancellable !== false) this.setMode(null);
         };
         document.addEventListener('keydown', this.onKey);
     }
 
     destroy() {
         document.removeEventListener('keydown', this.onKey);
+        this.resizeObserver.disconnect();
         this.board.destroy();
         closeAllModals();
         clear(this.root);
@@ -37,53 +50,131 @@ export class GameScreen {
         clear(this.root);
         this.canvas = h('canvas.board', { 'aria-label': 'Game board' });
         this.els = {
-            players: h('div.players-panel'),
-            info: h('div.info-panel'),
-            ck: h('div.ck-panel'),
-            status: h('div.status-banner', { role: 'status', 'aria-live': 'polite' }),
-            dice: h('div.dice-tray', { 'aria-live': 'polite' }),
-            hand: h('div.hand-panel'),
-            actions: h('div.actions-panel'),
-            cards: h('div.cards-panel'),
-            trades: h('div.trades-panel'),
+            players: h('div.players-strip', { role: 'list', 'aria-label': 'Players' }),
+            status: h('div.status-pill', { role: 'status', 'aria-live': 'polite' }),
+            ckMini: h('div.ck-mini', { hidden: true }),
+            dice: h('button.dice-mini', { type: 'button', hidden: true, title: 'Last roll', onclick: () => this.openDrawer('log') }),
+            hand: h('div.hand-dock'),
+            actions: h('div.action-bar'),
+            tray: h('div.tray', { hidden: true }),
+            trades: h('div.offers', { hidden: true }),
             log: h('ol.log-list'),
             chat: h('div.chat'),
+            cards: h('div.drawer-cards'),
+            info: h('div.drawer-info'),
         };
+        this.bankBtn = h('button.hud-btn.bank-btn', { type: 'button', title: 'Bank & info', 'aria-label': 'Bank and game info', onclick: () => this.toggleDrawer('info') }, '🏦');
+        this.drawerBtn = h('button.hud-btn', { type: 'button', title: 'Log & chat', 'aria-label': 'Log and chat', onclick: () => this.toggleDrawer('log') }, '💬');
+        const menuBtn = h('button.hud-btn', { type: 'button', title: 'Menu', 'aria-label': 'Menu', onclick: () => this.openMenu() }, '☰');
+
+        // Drawer with tabs
+        this.drawerBodies = { log: h('div.drawer-body', this.els.log), chat: h('div.drawer-body', this.els.chat), cards: h('div.drawer-body', this.els.cards), info: h('div.drawer-body', this.els.info) };
+        this.drawerTabBtns = {};
+        const tabs = h('div.drawer-tabs', { role: 'tablist' }, ...DRAWER_TABS.map(([id, label]) => {
+            const b = h('button.tab', { type: 'button', role: 'tab', onclick: () => this.openDrawer(id) }, label);
+            this.drawerTabBtns[id] = b;
+            return b;
+        }), h('button.icon-btn.small.drawer-close', { type: 'button', 'aria-label': 'Close panel', onclick: () => this.closeDrawer() }, '✕'));
+        this.drawer = h('aside.drawer', { 'aria-label': 'Game panel' }, tabs, ...Object.values(this.drawerBodies));
+        this.scrim = h('div.scrim', { onclick: () => { this.closeDrawer(); this.closeTray(); } });
+
         const zoom = h('div.zoom-controls',
-            h('button.icon-btn', { type: 'button', 'aria-label': 'Zoom in', onclick: () => this.board.zoomBy(1.2) }, '+'),
-            h('button.icon-btn', { type: 'button', 'aria-label': 'Zoom out', onclick: () => this.board.zoomBy(1 / 1.2) }, '−'),
-            h('button.icon-btn', { type: 'button', 'aria-label': 'Reset view', onclick: () => this.board.resetView() }, '⤢'));
+            h('button.hud-btn', { type: 'button', 'aria-label': 'Zoom in', onclick: () => this.board.zoomBy(1.2) }, '+'),
+            h('button.hud-btn', { type: 'button', 'aria-label': 'Zoom out', onclick: () => this.board.zoomBy(1 / 1.2) }, '−'),
+            h('button.hud-btn', { type: 'button', 'aria-label': 'Fit board', onclick: () => this.board.resetView() }, '⤢'));
 
-        const tabs = h('div.tabs');
-        const logTab = h('div.tab-body', this.els.log);
-        const chatTab = h('div.tab-body', { hidden: true }, this.els.chat);
-        const tabBtn = (label, body) => h('button.tab', {
-            type: 'button',
-            onclick: (e) => {
-                for (const b of tabs.querySelectorAll('.tab')) b.classList.toggle('active', b === e.currentTarget);
-                logTab.hidden = body !== logTab;
-                chatTab.hidden = body !== chatTab;
-                if (body === chatTab) e.currentTarget.classList.remove('unread');
-            },
-        }, label);
-        this.chatTabBtn = tabBtn('Chat', chatTab);
-        const logBtn = tabBtn('Log', logTab);
-        logBtn.classList.add('active');
-        tabs.append(logBtn, this.chatTabBtn);
-
-        this.root.append(h('div.game-layout',
-            h('aside.side.left', this.els.players, this.els.ck, this.els.info,
-                h('button.ghost.small.leave-btn', { type: 'button', onclick: () => this.confirmLeave() }, 'Leave game')),
-            h('div.center', this.els.status, h('div.board-wrap', this.canvas, zoom, this.els.dice)),
-            h('aside.side.right', this.els.hand, this.els.actions, this.els.cards, this.els.trades,
-                h('div.panel.log-panel', tabs, logTab, chatTab)),
+        this.hudTop = h('div.hud-top',
+            this.els.players,
+            h('div.hud-buttons', this.bankBtn, this.drawerBtn, menuBtn));
+        this.dock = h('div.dock', this.els.hand, this.els.actions);
+        this.root.append(h('div.game',
+            h('div.sea'),
+            h('div.board-layer', this.canvas),
+            this.hudTop,
+            h('div.hud-center', this.els.status, this.els.ckMini),
+            this.els.trades,
+            h('div.hud-side', zoom, this.els.dice),
+            this.els.tray,
+            this.dock,
+            this.scrim,
+            this.drawer,
         ));
         this.board = new BoardRenderer(this.canvas);
+        // Keep the board centred in the space the overlays leave free.
+        this.resizeObserver = new ResizeObserver(() => this.updateInsets());
+        for (const el of [this.hudTop, this.dock, this.els.status]) this.resizeObserver.observe(el);
+    }
+
+    updateInsets() {
+        const top = this.hudTop.offsetHeight + (this.els.status.offsetHeight || 0) + 16;
+        this.root.style.setProperty('--top-h', `${this.hudTop.offsetHeight}px`);
+        this.root.style.setProperty('--dock-h', `${this.dock.offsetHeight}px`);
+        this.board.setInsets({ top, bottom: this.dock.offsetHeight + 8, left: 0, right: window.innerWidth > 700 ? 56 : 0 });
     }
 
     async confirmLeave() {
         const ok = await confirmDialog('Leave game?', 'A bot will play for you for the rest of this game. You cannot rejoin.', 'Leave');
         if (ok) this.leave();
+    }
+
+    openMenu() {
+        const theme = document.documentElement.dataset.theme === 'dusk' ? 'dusk' : 'day';
+        const m = modal({
+            title: 'Menu',
+            content: h('div.menu-list',
+                h('button', { type: 'button', onclick: () => { m.close(); modal({ title: 'How to play', content: helpContent(), wide: true }); } }, '❓ How to play'),
+                h('button', { type: 'button', onclick: () => { toggleTheme(); m.close(); } }, theme === 'dusk' ? '☀️ Day theme' : '🌙 Dusk theme'),
+                document.fullscreenEnabled ? h('button', { type: 'button', onclick: () => { toggleFullscreen(); m.close(); } }, document.fullscreenElement ? '🗗 Exit full screen' : '⛶ Full screen') : null,
+                h('button', { type: 'button', onclick: () => { m.close(); this.openDrawer('info'); } }, '🏦 Bank, costs & rates'),
+                h('button.danger-btn', { type: 'button', onclick: () => { m.close(); this.confirmLeave(); } }, '🚪 Leave game')),
+        });
+    }
+
+    showPlayer(i) {
+        const p = this.game.players[i];
+        modal({ title: `${p.name}${i === this.me ? ' (you)' : ''}`, content: panels.playerDetails(this, i) });
+    }
+
+    // ------------------------------------------------------------ trays & drawer
+
+    toggleTray(name) {
+        this.tray = this.tray === name ? null : name;
+        if (this.tray) this.closeDrawer();
+        panels.renderActions(this);
+        this.scrim.classList.toggle('show', !!this.tray && window.innerWidth < 700);
+    }
+
+    closeTray() {
+        if (!this.tray) return;
+        this.tray = null;
+        this.els.tray.hidden = true;
+        this.scrim.classList.remove('show');
+        if (this.view) panels.renderActions(this);
+    }
+
+    openDrawer(tab) {
+        this.drawerTab = tab;
+        this.closeTray();
+        this.drawer.classList.add('open');
+        this.scrim.classList.add('show');
+        for (const [id, body] of Object.entries(this.drawerBodies)) body.hidden = id !== tab;
+        for (const [id, b] of Object.entries(this.drawerTabBtns)) b.classList.toggle('active', id === tab);
+        if (tab === 'chat') {
+            this.drawerTabBtns.chat.classList.remove('unread');
+            this.drawerBtn.classList.remove('unread');
+        }
+        if (tab === 'log') this.drawerBodies.log.scrollTop = this.drawerBodies.log.scrollHeight;
+    }
+
+    toggleDrawer(tab) {
+        if (this.drawerTab === tab) this.closeDrawer();
+        else this.openDrawer(tab);
+    }
+
+    closeDrawer() {
+        this.drawerTab = null;
+        this.drawer.classList.remove('open');
+        this.scrim.classList.remove('show');
     }
 
     // ------------------------------------------------------------ helpers
@@ -260,10 +351,10 @@ export class GameScreen {
 
     update(view) {
         const prev = this.view;
+        this.prevView = prev;
         this.view = view;
         const g = view.game;
 
-        // Board data
         const metropolisAt = {};
         if (g.ck) for (const [track, m] of Object.entries(g.ck.metropolis)) if (m) metropolisAt[m.vertex] = track;
         this.board.setData({
@@ -280,7 +371,6 @@ export class GameScreen {
             metropolisAt,
         });
 
-        // Interaction mode: forced modes take priority; user modes are kept if still valid.
         // Interaction mode: modes the game forces (setup, robber, ...) always win; a mode the
         // player chose (e.g. "build a road") survives updates only while it is still their move.
         const auto = this.autoMode();
@@ -289,20 +379,23 @@ export class GameScreen {
         } else if (this.mode && (this.mode.auto || !this.stillValid())) {
             this.setMode(null);
         }
+        if (this.tray && !this.stillValid()) this.closeTray();
 
         this.renderStatus();
         panels.renderPlayers(this);
-        panels.renderInfo(this);
-        panels.renderCk(this);
         panels.renderHand(this);
         panels.renderActions(this);
         panels.renderCards(this);
+        panels.renderInfo(this);
+        panels.renderCkMini(this);
         panels.renderTrades(this);
         this.renderLog();
         this.renderChat(prev);
-        this.renderDice();
+        this.renderDice(prev);
+        if (prev && prev.game) this.animateChanges(prev.game, g);
         this.handleRequiredDialogs();
         this.handleWinner();
+        this.updateInsets();
     }
 
     stillValid() {
@@ -338,8 +431,10 @@ export class GameScreen {
             };
             text = T[w.kind] || '';
         }
+        const who = w.players.length === 1 ? this.player(w.players[0]) : null;
         el.classList.toggle('mine', mine && g.phase !== 'finished');
-        el.append(h('span', text));
+        el.style.setProperty('--who', who ? COLOR_HEX[who.color] || '#999' : 'transparent');
+        el.append(h('span.status-text', text));
         if (this.mode && this.mode.extra) el.append(this.mode.extra);
         if (this.mode && this.mode.cancellable !== false) {
             el.append(h('button.secondary.small', { type: 'button', onclick: () => this.setMode(null) }, 'Cancel'));
@@ -349,10 +444,11 @@ export class GameScreen {
     renderLog() {
         const g = this.game;
         const list = this.els.log;
-        const atBottom = list.parentElement ? list.parentElement.scrollHeight - list.parentElement.scrollTop - list.parentElement.clientHeight < 40 : true;
+        const body = this.drawerBodies.log;
+        const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
         clear(list);
         for (const e of g.log) list.append(h('li', e.msg));
-        if (atBottom && list.parentElement) list.parentElement.scrollTop = list.parentElement.scrollHeight;
+        if (atBottom || !this.drawerTab) body.scrollTop = body.scrollHeight;
         // Toast messages addressed to me.
         const fresh = g.log.filter((e) => e.id > this.lastLogId);
         if (this.lastLogId > 0) {
@@ -366,12 +462,14 @@ export class GameScreen {
         renderChat(this.els.chat, room);
         const prevLast = prev?.room.chat.at(-1)?.id || 0;
         const last = room.chat.at(-1);
-        if (last && last.id > prevLast && prev && last.from !== room.you && this.els.chat.parentElement.hidden) {
-            this.chatTabBtn.classList.add('unread');
+        if (last && last.id > prevLast && prev && last.from !== room.you && this.drawerTab !== 'chat') {
+            this.drawerTabBtns.chat.classList.add('unread');
+            this.drawerBtn.classList.add('unread');
+            fx.bump(this.drawerBtn, 1.3);
         }
     }
 
-    renderDice() {
+    renderDice(prev) {
         const r = this.game.lastRoll;
         const el = this.els.dice;
         if (!r) {
@@ -380,22 +478,132 @@ export class GameScreen {
         }
         const key = `${r.turn}-${r.total}-${r.by}`;
         if (key === this.lastRollKey) return;
-        const fresh = this.lastRollKey !== null;
+        const fresh = this.lastRollKey !== null || (prev && prev.game && !prev.game.lastRoll);
         this.lastRollKey = key;
-        clear(el);
-        el.hidden = false;
-        const faces = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-        el.append(h('span.die', { class: r.event ? 'yellow' : '' }, faces[r.dice[0]]), h('span.die', { class: r.event ? 'red' : '' }, faces[r.dice[1]]));
-        if (r.event) {
-            const ev = { ship: '⛵', trade: '🟡', politics: '🔵', science: '🟢' }[r.event];
-            el.append(h('span.die.event', { title: `Event: ${r.event}` }, ev));
+        const tones = r.event ? ['yellow', 'red'] : ['', ''];
+        const show = () => {
+            clear(el);
+            el.hidden = false;
+            el.append(fx.diceFace(r.dice[0], tones[0]), fx.diceFace(r.dice[1], tones[1]));
+            if (r.event) el.append(h('span.event', { title: `Event: ${r.event}` }, { ship: '⛵', trade: '🟡', politics: '🔵', science: '🟢' }[r.event]));
+            el.append(h('span.total', String(r.total)));
+        };
+        if (!fresh) return show();
+        el.hidden = true;
+        fx.rollDice(r.dice, tones, el, () => {
+            show();
+            fx.bump(el, 1.25);
+        });
+        // Light up the tiles that produce (after the dice land).
+        setTimeout(() => {
+            if (r.total === 7) {
+                fx.splash('7!', { sub: this.game.ck && !this.game.ck.robberActive ? 'Too many cards? Discard half.' : 'The robber strikes', tone: 'red', duration: 1400 });
+                return;
+            }
+            const hexes = this.game.board.hexes.map((hx, i) => (hx.number === r.total && i !== this.game.robber ? i : -1)).filter((i) => i >= 0);
+            this.board.flashHexes(hexes);
+        }, 900);
+    }
+
+    // ------------------------------------------------------------ change animations
+
+    /** Anchor positions used by flying cards. */
+    anchorFor(kind, arg) {
+        if (kind === 'player') {
+            if (arg === this.me && this.handEls) return null;
+            return this.chipEls?.[arg]?.avatar || null;
         }
-        el.append(h('span.total', String(r.total)));
-        if (fresh) {
-            el.classList.remove('roll');
-            void el.offsetWidth;
-            el.classList.add('roll');
+        if (kind === 'hand') return this.handEls?.[arg]?.card || this.hudTop;
+        if (kind === 'bank') {
+            // On phones the bank button is hidden: use the middle of the board instead.
+            if (this.bankBtn.offsetParent !== null) return this.bankBtn;
+            const r = this.canvas.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height * 0.42 };
         }
+        return null;
+    }
+
+    animateChanges(a, b) {
+        if (a.me < 0 || b.me < 0 || a.players.length !== b.players.length) return;
+        const me = b.me;
+        const types = Object.keys(b.private.hand);
+        const gains = [];
+        const losses = [];
+        for (const t of types) {
+            const d = (b.private.hand[t] || 0) - (a.private.hand[t] || 0);
+            for (let k = 0; k < Math.abs(d); k++) (d > 0 ? gains : losses).push(t);
+        }
+        const others = b.players.map((p, i) => (i === me ? 0 : p.handCount - a.players[i].handCount));
+        const otherLosers = others.map((d, i) => (d < 0 ? i : -1)).filter((i) => i >= 0);
+        const otherGainers = others.map((d, i) => (d > 0 ? i : -1)).filter((i) => i >= 0);
+        const newRoll = b.lastRoll && (!a.lastRoll || a.lastRoll.turn !== b.lastRoll.turn || a.lastRoll.by !== b.lastRoll.by || a.lastRoll.total !== b.lastRoll.total);
+        const rollDelay = newRoll ? 1150 : 0;
+        let n = 0;
+        const stagger = () => rollDelay + Math.min(n++, 14) * 70;
+
+        // My gains: from an opponent who lost cards, from producing hexes, or from the bank.
+        for (const t of gains) {
+            let from = otherLosers.length ? this.anchorFor('player', otherLosers[0]) : null;
+            if (!from && newRoll && b.lastRoll.total !== 7) from = this.producingHexFor(b, t) || null;
+            if (!from) from = this.anchorFor('bank');
+            fx.flyCard(t, from, this.anchorFor('hand', t), { delay: stagger() });
+        }
+        // My losses: to an opponent who gained, otherwise to the bank.
+        for (const t of losses) {
+            const to = otherGainers.length ? this.anchorFor('player', otherGainers[0]) : this.anchorFor('bank');
+            fx.flyCard(t, this.anchorFor('hand', t), to, { delay: stagger() });
+        }
+        // Everyone else: card backs between their chip and the bank / board.
+        if (!gains.length && !losses.length) {
+            const paired = otherGainers.length === 1 && otherLosers.length >= 1;
+            others.forEach((d, i) => {
+                if (!d) return;
+                const count = Math.min(Math.abs(d), 6);
+                for (let k = 0; k < count; k++) {
+                    if (d > 0) {
+                        const from = paired ? this.anchorFor('player', otherLosers[0]) : (newRoll && b.lastRoll.total !== 7 ? this.producingHexForPlayer(b, i) : null) || this.anchorFor('bank');
+                        fx.flyCard('back', from, this.anchorFor('player', i), { delay: stagger() });
+                    } else if (!paired) {
+                        fx.flyCard('back', this.anchorFor('player', i), this.anchorFor('bank'), { delay: stagger() });
+                    }
+                }
+            });
+        }
+        // Development / progress cards bought or drawn.
+        b.players.forEach((p, i) => {
+            const before = b.ck ? a.ck?.players[i].progressCount : a.players[i].devCount;
+            const after = b.ck ? b.ck.players[i].progressCount : p.devCount;
+            if (after > before) {
+                const to = i === me ? this.cardsBtn : this.anchorFor('player', i);
+                for (let k = 0; k < after - before; k++) fx.flyCard(b.ck ? 'progress' : 'dev', this.anchorFor('bank'), to, { delay: stagger() });
+            }
+        });
+        // VP changes float above the chip.
+        b.players.forEach((p, i) => {
+            const va = i === me ? a.players[i].vp : a.players[i].publicVp;
+            const vb = i === me ? p.vp : p.publicVp;
+            if (vb !== va && b.phase !== 'setup') fx.floatText(`${vb > va ? '+' : ''}${vb - va} VP`, this.anchorFor('player', i) || this.chipEls?.[i]?.el, { color: vb > va ? '#ffe27a' : '#ff9a8a' });
+        });
+        // Whose turn
+        if (b.phase !== 'finished' && b.current === me && (a.current !== me || a.phase === 'setup') && b.phase === 'preRoll') {
+            fx.splash('Your turn!', { sub: 'Roll the dice', tone: 'gold' });
+        }
+    }
+
+    /** Screen position of a hex that produced resource `t` for me on the latest roll. */
+    producingHexFor(g, t) {
+        const total = g.lastRoll.total;
+        const idx = g.board.hexes.findIndex((hx, i) => hx.number === total && i !== g.robber &&
+            (TERRAIN_RESOURCE[hx.terrain] === t || hx.terrain === 'gold' || COMMODITY_TERRAIN[t] === hx.terrain) &&
+            Object.entries(g.buildings).some(([v, bld]) => bld.owner === g.me && hexHasCorner(hx, v)));
+        return idx >= 0 ? this.board.hexScreen(idx) : null;
+    }
+
+    producingHexForPlayer(g, player) {
+        const total = g.lastRoll.total;
+        const idx = g.board.hexes.findIndex((hx, i) => hx.number === total && i !== g.robber &&
+            Object.entries(g.buildings).some(([v, bld]) => bld.owner === player && hexHasCorner(hx, v)));
+        return idx >= 0 ? this.board.hexScreen(idx) : null;
     }
 
     handleRequiredDialogs() {
@@ -414,7 +622,27 @@ export class GameScreen {
         if (this.game.phase === 'finished' && !this.winnerShown) {
             this.winnerShown = true;
             this.setMode(null);
-            dialogs.winner(this);
+            if (this.game.winner === this.me) fx.confetti();
+            setTimeout(() => dialogs.winner(this), this.prevView ? 900 : 0);
         }
     }
+}
+
+const COMMODITY_TERRAIN = { paper: 'forest', cloth: 'pasture', coin: 'mountains' };
+
+function hexHasCorner(hex, vertexId) {
+    const X = 2 * hex.q + hex.r;
+    const Y = 3 * hex.r;
+    return [[0, -2], [1, -1], [1, 1], [0, 2], [-1, 1], [-1, -1]].some(([dx, dy]) => `${X + dx},${Y + dy}` === vertexId);
+}
+
+export function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'dusk' ? 'day' : 'dusk';
+    document.documentElement.dataset.theme = next;
+    store.setPref('theme', next);
+}
+
+function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
 }
