@@ -437,7 +437,11 @@ export function winner(s) {
     const w = g.players[g.winner];
     modal({
         title: '🏆 Game over',
-        content: [h('p.big-text', g.winner === g.me ? 'You win! 🎉' : `${w.name} wins!`), h('table.scores', h('tbody', ...rows))],
+        content: [
+            h('p.big-text', g.winner === g.me ? 'You win! 🎉' : `${w.name} wins!`),
+            g.endReason === 'forfeit' ? h('p.muted.center', 'Everyone else left the game.') : null,
+            h('table.scores', h('tbody', ...rows)),
+        ],
         actions: [
             h('button.secondary', { type: 'button', onclick: () => s.leave() }, 'Leave'),
             isHost ? h('button.primary', { type: 'button', onclick: async () => {

@@ -284,7 +284,8 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--green); 
     border: 2px dashed #d7a93d;
 }
 .member-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
-.member { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--input-bg); border: 1px solid var(--line); border-radius: 12px; animation: floatIn 0.4s var(--ease-spring) both; }
+.member { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--input-bg); border: 1px solid var(--line); border-radius: 12px; }
+.member.new { animation: floatIn 0.4s var(--ease-spring) both; }
 .member.me { border-color: var(--green-2); box-shadow: 0 0 0 2px rgba(88, 173, 115, 0.25); }
 .member-name { font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .your-color { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -303,12 +304,13 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--green); 
 .chat { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .chat-list { list-style: none; margin: 0; padding: 8px; height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--line); border-radius: 12px; font-size: 0.9rem; overflow-wrap: anywhere; }
 .drawer .chat-list { height: auto; flex: 1; min-height: 240px; }
-.chat-list li { padding: 3px 0; animation: logIn 0.3s ease-out; }
+.chat-list li { padding: 3px 0; }
+.chat-list li.new { animation: logIn 0.3s ease-out; }
 .chat-input { display: flex; gap: 6px; }
 .chat-input input { flex: 1; }
 .log-list { list-style: none; padding: 0; margin: 0; font-size: 0.86rem; }
 .log-list li { padding: 5px 2px; border-bottom: 1px dashed var(--line); overflow-wrap: anywhere; }
-.log-list li:last-child { animation: logIn 0.35s ease-out; }
+.log-list li.new { animation: logIn 0.35s ease-out; }
 @keyframes logIn { from { opacity: 0; transform: translateX(10px); } }
 
 /* ------------------------------------------------------------ game: full-screen board + HUD */
@@ -683,7 +685,7 @@ canvas.board.builder { cursor: crosshair; }
     backdrop-filter: blur(12px);
     border: 1px solid var(--line);
     box-shadow: var(--shadow);
-    z-index: 12;
+    z-index: 15; /* above the scrim, which closes the tray when tapped outside */
     animation: trayIn 0.3s var(--ease-spring);
 }
 @keyframes trayIn { from { transform: translate(-50%, 20px) scale(0.96); opacity: 0; } }
@@ -976,4 +978,21 @@ body[data-screen='game'] #toasts { bottom: auto; top: calc(env(safe-area-inset-t
     .builder-actions button { padding: 7px 10px; font-size: 0.85rem; }
     .builder-stats { font-size: 0.78rem; }
     .tool-group-label { font-size: 0.62rem; }
+}
+.center { text-align: center; }
+
+/* ------------------------------------------------------------ touch devices: lighter effects
+   Live blur, extra full-screen animated layers and endlessly animated shadows
+   are expensive on phone GPUs, so swap them for cheap equivalents. */
+@media (pointer: coarse) {
+    :root { --glass: rgba(255, 250, 238, 0.95); }
+    :root[data-theme='dusk'] { --glass: rgba(30, 36, 54, 0.95); }
+    *, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+    .sea::after { display: none; }
+    .sea::before { animation-duration: 60s; }
+    .status-pill.mine { animation: pillIn 0.35s var(--ease-spring); }
+    .chip.waiting .avatar { animation: none; box-shadow: 0 0 0 3px rgba(242, 182, 47, 0.6); }
+    .pulse { animation: none; box-shadow: 0 0 0 4px rgba(88, 173, 115, 0.35), 0 2px 0 #2c5f3e; }
+    .hand-total.danger { animation: none; }
+    .drawer { box-shadow: none; }
 }

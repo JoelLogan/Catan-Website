@@ -447,7 +447,7 @@ export class GameScreen {
         const body = this.drawerBodies.log;
         const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
         clear(list);
-        for (const e of g.log) list.append(h('li', e.msg));
+        for (const e of g.log) list.append(h('li', { class: this.lastLogId > 0 && e.id > this.lastLogId ? 'new' : '' }, e.msg));
         if (atBottom || !this.drawerTab) body.scrollTop = body.scrollHeight;
         // Toast messages addressed to me.
         const fresh = g.log.filter((e) => e.id > this.lastLogId);

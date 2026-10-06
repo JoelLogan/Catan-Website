@@ -499,13 +499,34 @@ export class Game {
         if (s.phase === 'finished' || s.phase === 'setup') return;
         const cur = s.current;
         if (this.victoryPoints(cur, { includeHidden: true }) >= this.settings.victoryPoints) {
-            s.phase = 'finished';
-            s.winner = cur;
-            s.pending = { gold: {}, discard: {}, robber: null, steal: null, roadBuilding: 0 };
-            if (this.citiesKnights) ck.clearPending(this);
-            s.trades = [];
+            this.finish(cur);
             this.log(`🏆 ${this.name(cur)} wins with ${this.victoryPoints(cur, { includeHidden: true })} victory points!`);
         }
+    }
+
+    finish(winner, reason = 'points') {
+        const s = this.state;
+        s.phase = 'finished';
+        s.winner = winner;
+        s.endReason = reason;
+        s.setup = null;
+        s.specialBuild = null;
+        s.pending = { gold: {}, discard: {}, robber: null, steal: null, roadBuilding: 0 };
+        if (this.citiesKnights) ck.clearPending(this);
+        s.trades = [];
+    }
+
+    /**
+     * End the game early because every other player has left; `playerId` wins.
+     * Works in any phase, including setup.
+     */
+    forfeitTo(playerId) {
+        const idx = this.playerIndex(playerId);
+        assert(idx >= 0, 'Unknown player');
+        if (this.state.phase === 'finished') return;
+        this.finish(idx, 'forfeit');
+        this.log(`🏆 Everyone else has left — ${this.name(idx)} wins!`);
+        this.state.seq++;
     }
 
     updateLongestRoad() {

@@ -465,6 +465,18 @@ describe('seafarers', () => {
     });
 });
 
+describe('ending early', () => {
+    test('forfeitTo ends the game in any phase and clears pending work', () => {
+        const g = newGame({ players: 3 });
+        g.forfeitTo(idOf(g, 2));
+        assert.equal(g.state.phase, 'finished');
+        assert.equal(g.state.winner, 2);
+        assert.equal(g.state.endReason, 'forfeit');
+        assert.equal(viewFor(g, idOf(g, 0)).endReason, 'forfeit');
+        rejects(() => act(g, 0, { type: 'rollDice' }), /over/);
+    });
+});
+
 describe('robustness', () => {
     test('malformed actions are rejected with GameError and do not change state', () => {
         const g = newGame({ players: 2 });

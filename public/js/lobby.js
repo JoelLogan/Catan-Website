@@ -179,6 +179,14 @@ function setIfIdle(input, value) {
     else input.value = value;
 }
 
+function membersSignature(room) {
+    return room.members.map((m) => `${m.id}|${m.name}|${m.color}|${m.isBot ? 1 : 0}|${m.connected ? 1 : 0}|${m.id === room.hostId ? 1 : 0}|${m.id === room.you ? 1 : 0}`).join(',');
+}
+
+function colorSignature(room) {
+    return `${room.you}|${room.members.map((m) => `${m.id}|${m.color}`).join(',')}`;
+}
+
 function update(u, view) {
     u.lastView = view;
     const { room } = view;
@@ -204,35 +212,46 @@ function update(u, view) {
     u.builderBtn.hidden = !isHost;
 
     // Players
-    clear(u.playersList);
-    for (const m of room.members) {
-        const canKick = isHost && m.id !== room.you;
-        u.playersList.append(h('li.member', { class: m.id === room.you ? 'me' : '' },
-            h('span.avatar', { style: { background: COLOR_HEX[m.color] || '#999' } }, m.name.slice(0, 1).toUpperCase()),
-            h('span.member-name', m.name),
-            m.id === room.hostId ? h('span.tag', '👑 host') : null,
-            m.isBot ? h('span.tag', 'bot') : null,
-            !m.isBot && !m.connected ? h('span.tag.warn', 'offline') : null,
-            canKick ? h('button.icon-btn.small', { type: 'button', 'aria-label': `Remove ${m.name}`, onclick: () => u.send('room:kick', { memberId: m.id }) }, '✕') : null,
-        ));
+    const nextMembersSig = membersSignature(room);
+    if (u.membersSig !== nextMembersSig) {
+        clear(u.playersList);
+        for (const m of room.members) {
+            const canKick = isHost && m.id !== room.you;
+            // Only players who just joined get the entrance animation.
+            const fresh = u.seenMembers && !u.seenMembers.has(m.id);
+            u.playersList.append(h('li.member', { class: `${m.id === room.you ? 'me' : ''} ${fresh ? 'new' : ''}` },
+                h('span.avatar', { style: { background: COLOR_HEX[m.color] || '#999' } }, m.name.slice(0, 1).toUpperCase()),
+                h('span.member-name', m.name),
+                m.id === room.hostId ? h('span.tag', '👑 host') : null,
+                m.isBot ? h('span.tag', 'bot') : null,
+                !m.isBot && !m.connected ? h('span.tag.warn', 'offline') : null,
+                canKick ? h('button.icon-btn.small', { type: 'button', 'aria-label': `Remove ${m.name}`, onclick: () => u.send('room:kick', { memberId: m.id }) }, '✕') : null,
+            ));
+        }
+        u.membersSig = nextMembersSig;
+        u.seenMembers = new Set(room.members.map((m) => m.id));
     }
     u.el.querySelector('.count').textContent = `(${room.members.length}/${s.maxPlayers})`;
 
     // Colors
-    clear(u.colorRow);
-    const taken = new Map(room.members.map((m) => [m.color, m]));
-    for (const c of PLAYER_COLORS) {
-        const owner = taken.get(c);
-        const mine = owner && owner.id === room.you;
-        u.colorRow.append(h('button.color-btn', {
-            type: 'button',
-            class: mine ? 'selected' : '',
-            style: { background: COLOR_HEX[c] },
-            disabled: !!owner && !mine,
-            'aria-label': `${c}${owner ? ` (taken by ${owner.name})` : ''}`,
-            title: c,
-            onclick: () => u.send('room:color', { color: c }),
-        }));
+    const nextColorSig = colorSignature(room);
+    if (u.colorSig !== nextColorSig) {
+        clear(u.colorRow);
+        const taken = new Map(room.members.map((m) => [m.color, m]));
+        for (const c of PLAYER_COLORS) {
+            const owner = taken.get(c);
+            const mine = owner && owner.id === room.you;
+            u.colorRow.append(h('button.color-btn', {
+                type: 'button',
+                class: mine ? 'selected' : '',
+                style: { background: COLOR_HEX[c] },
+                disabled: !!owner && !mine,
+                'aria-label': `${c}${owner ? ` (taken by ${owner.name})` : ''}`,
+                title: c,
+                onclick: () => u.send('room:color', { color: c }),
+            }));
+        }
+        u.colorSig = nextColorSig;
     }
 
     u.addBotBtn.hidden = !isHost;
