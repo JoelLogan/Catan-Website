@@ -2,8 +2,8 @@ import { h, clear, toast } from './dom.js';
 import * as net from './net.js';
 import { COLOR_HEX, LIMITS } from '/shared/constants.js';
 
-function renderMessageItem(m) {
-    return h('li', h('b', { style: { color: COLOR_HEX[m.color] || '#333' } }, m.name), ': ', m.text);
+function renderMessageItem(m, fresh = false) {
+    return h('li', { class: fresh ? 'new' : '' }, h('b', { style: { color: COLOR_HEX[m.color] || '#333' } }, m.name), ': ', m.text);
 }
 
 /** Render (or refresh) a chat box inside `box` for the given room view. */
@@ -42,8 +42,10 @@ export function renderChat(box, room) {
     const canAppend = last >= first && room.chat.some((m) => m.id === last);
     if (canAppend) {
         for (const m of room.chat) {
-            if (m.id > last) list.append(renderMessageItem(m));
+            if (m.id > last) list.append(renderMessageItem(m, true));
         }
+        // The server keeps a bounded history; drop lines that fell off it.
+        while (list.childElementCount > room.chat.length) list.firstElementChild.remove();
     } else {
         clear(list);
         for (const m of room.chat) list.append(renderMessageItem(m));

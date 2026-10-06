@@ -159,6 +159,12 @@ export class Room {
             const next = this.members.find((x) => !x.isBot && !x.left);
             this.hostId = next ? next.id : null;
         }
+        // A game with only one player still in it is over: that player wins.
+        // (Bots count as players, so a human can keep playing against bots.)
+        if (this.game && this.game.state.phase !== 'finished') {
+            const remaining = this.members.filter((x) => !x.left);
+            if (remaining.length === 1) this.game.forfeitTo(remaining[0].id);
+        }
         this.touch();
         return m;
     }

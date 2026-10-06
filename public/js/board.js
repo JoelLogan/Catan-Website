@@ -19,12 +19,15 @@ export const TERRAIN_COLOR = {
 
 const images = {};
 let imagesReady = null;
+let imagesVersion = 0; // bumps as tile images finish loading (invalidates cached layers)
+// Touch devices get a lighter animation budget.
+const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
 
 function loadImages(onLoad) {
     if (imagesReady) return imagesReady;
     imagesReady = Promise.all(Object.entries(TERRAIN_IMAGE).map(([terrain, file]) => new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => { images[terrain] = img; onLoad(); resolve(); };
+        img.onload = () => { images[terrain] = img; imagesVersion++; onLoad(); resolve(); };
         img.onerror = () => resolve();
         img.src = `/images/tiles/${file}.svg`;
     })));
@@ -101,6 +104,7 @@ export class BoardRenderer {
         const prev = this.data;
         const firstBoard = !prev.hexes.length && data.hexes && data.hexes.length;
         this.data = data;
+        this.dataVersion = (this.dataVersion || 0) + 1;
         if (firstBoard) {
             if (!this.builder && !reducedMotion()) this.revealAt = performance.now();
         } else if (!reducedMotion()) {
@@ -204,7 +208,8 @@ export class BoardRenderer {
         const w = parent.clientWidth;
         const h = parent.clientHeight;
         if (!w || !h) return;
-        const dpr = window.devicePixelRatio || 1;
+        // Beyond 2x the extra pixels are invisible but cost a lot of fill-rate on phones.
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
         this.canvas.width = Math.round(w * dpr);
         this.canvas.height = Math.round(h * dpr);
         this.canvas.style.width = `${w}px`;
@@ -397,13 +402,55 @@ export class BoardRenderer {
 
     // ------------------------------------------------------------ drawing
 
-    requestDraw() {
+    requestDraw(delay = 0) {
         if (this.pending) return;
         this.pending = true;
-        requestAnimationFrame(() => {
+        const run = () => requestAnimationFrame(() => {
             this.pending = false;
             this.draw();
         });
+        if (delay) setTimeout(run, delay);
+        else run();
+    }
+
+    /**
+     * Everything that only changes when the board data or the view changes:
+     * tiles, their shadow, harbors and number tokens. Cached in an offscreen
+     * canvas so animation frames only redraw pieces and highlights.
+     */
+    drawStatic(ctx, now, revealing) {
+        const d = this.data;
+        const saved = this.ctx;
+        this.ctx = ctx;
+        try {
+            if (this.builder) this.drawGhostGrid();
+            this.drawLandShadow(revealing ? clamp01((now - this.revealAt - 600) / 1200) : 1);
+            d.hexes.forEach((h, i) => this.withHexFx(h, i, now, () => this.drawHex(h, i)));
+            (d.ports || []).forEach((p) => this.withFade(revealing ? clamp01((now - this.revealAt - 1200) / 500) : 1, () => this.drawPort(p)));
+            d.hexes.forEach((h, i) => {
+                if (h.number) this.withHexFx(h, i, now, () => this.drawNumber(h, i), 300);
+            });
+        } finally {
+            this.ctx = saved;
+        }
+    }
+
+    staticLayer(now) {
+        const key = [this.canvas.width, this.canvas.height, this.scale, this.offset.x, this.offset.y, imagesVersion,
+            this.ghostRadius, this.dataVersion].join('|');
+        if (this.staticCanvas && this.staticKey === key) return this.staticCanvas;
+        if (!this.staticCanvas) this.staticCanvas = document.createElement('canvas');
+        const c = this.staticCanvas;
+        c.width = this.canvas.width;
+        c.height = this.canvas.height;
+        const sctx = c.getContext('2d');
+        const dpr = this.dpr || 1;
+        sctx.setTransform(dpr * this.scale, 0, 0, dpr * this.scale, dpr * this.offset.x, dpr * this.offset.y);
+        sctx.lineJoin = 'round';
+        sctx.lineCap = 'round';
+        this.drawStatic(sctx, now, false);
+        this.staticKey = key;
+        return c;
     }
 
     color(ownerIndex) {
@@ -425,14 +472,17 @@ export class BoardRenderer {
         const d = this.data;
         const revealing = this.revealAt && now - this.revealAt < 2600;
         if (!revealing) this.revealAt = 0;
-        if (this.builder) this.drawGhostGrid();
-        this.drawLandShadow(revealing ? clamp01((now - this.revealAt - 600) / 1200) : 1);
-        d.hexes.forEach((h, i) => this.withHexFx(h, i, now, () => this.drawHex(h, i)));
+        // While tiles are animating (reveal, builder paint) draw them live; otherwise blit the cache.
+        if (revealing || this.anims.some((a) => a.type === 'tile')) {
+            this.drawStatic(ctx, now, revealing);
+        } else {
+            const layer = this.staticLayer(now);
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.drawImage(layer, 0, 0);
+            ctx.restore();
+        }
         for (const a of this.anims) if (a.type === 'glow') this.drawGlow(a, now);
-        (d.ports || []).forEach((p) => this.withFade(revealing ? clamp01((now - this.revealAt - 1200) / 500) : 1, () => this.drawPort(p)));
-        d.hexes.forEach((h, i) => {
-            if (h.number) this.withHexFx(h, i, now, () => this.drawNumber(h, i), 300);
-        });
         if (d.merchant) this.drawMerchant(d.merchant);
         if (d.robber !== null && d.robber !== undefined && d.hexes[d.robber]) {
             this.drawRobber(this.slidePos('robber', hexPos(d.hexes[d.robber]), now), d.robberActive !== false);
@@ -457,7 +507,9 @@ export class BoardRenderer {
         this.drawTargets(now);
 
         this.anims = this.anims.filter((a) => now - a.start < a.duration);
-        if (this.anims.length || revealing || (this.targets && !reducedMotion())) this.requestDraw();
+        if (this.anims.length || revealing) this.requestDraw();
+        // The gentle target pulse doesn't need 60 fps; on touch devices run it at ~30.
+        else if (this.targets && !reducedMotion()) this.requestDraw(coarsePointer() ? 33 : 0);
     }
 
     withFade(alpha, fn) {

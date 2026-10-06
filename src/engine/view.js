@@ -77,6 +77,7 @@ export function viewFor(game, playerId) {
         turn: s.turn,
         current: s.current,
         winner: s.winner,
+        endReason: s.endReason || null,
         settings: {
             victoryPoints: settings.victoryPoints,
             expansions: settings.expansions,

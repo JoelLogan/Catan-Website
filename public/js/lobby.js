@@ -217,7 +217,9 @@ function update(u, view) {
         clear(u.playersList);
         for (const m of room.members) {
             const canKick = isHost && m.id !== room.you;
-            u.playersList.append(h('li.member', { class: m.id === room.you ? 'me' : '' },
+            // Only players who just joined get the entrance animation.
+            const fresh = u.seenMembers && !u.seenMembers.has(m.id);
+            u.playersList.append(h('li.member', { class: `${m.id === room.you ? 'me' : ''} ${fresh ? 'new' : ''}` },
                 h('span.avatar', { style: { background: COLOR_HEX[m.color] || '#999' } }, m.name.slice(0, 1).toUpperCase()),
                 h('span.member-name', m.name),
                 m.id === room.hostId ? h('span.tag', '👑 host') : null,
@@ -227,6 +229,7 @@ function update(u, view) {
             ));
         }
         u.membersSig = nextMembersSig;
+        u.seenMembers = new Set(room.members.map((m) => m.id));
     }
     u.el.querySelector('.count').textContent = `(${room.members.length}/${s.maxPlayers})`;
 

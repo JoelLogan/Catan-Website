@@ -174,6 +174,32 @@ describe('rooms', () => {
         host.close();
     }
 
+    test('when everyone else leaves, the last player wins', async () => {
+        const host = await connect();
+        const { code } = await call(host, 'room:create', { name: 'Stayer' });
+        const guest = await connect();
+        await call(guest, 'room:join', { code, name: 'Quitter' });
+        assert.equal((await call(host, 'room:start')).ok, true);
+        assert.equal((await call(guest, 'room:leave')).ok, true);
+        const st = await waitFor(() => lastState(host)?.game?.phase === 'finished' && lastState(host));
+        assert.equal(st.game.players[st.game.winner].name, 'Stayer');
+        assert.equal(st.game.endReason, 'forfeit');
+        host.close();
+    });
+
+    test('a human who leaves while bots remain does not end the game', async () => {
+        const host = await connect();
+        const { code } = await call(host, 'room:create', { name: 'Solo2' });
+        const guest = await connect();
+        await call(guest, 'room:join', { code, name: 'Leaver2' });
+        await call(host, 'room:addBot');
+        await call(host, 'room:start');
+        await call(guest, 'room:leave');
+        const room = srv.rooms.get(code);
+        assert.notEqual(room.game.state.phase, 'finished');
+        host.close();
+    });
+
     test('game actions are validated and errors reported', async () => {
         const host = await connect();
         const { code } = await call(host, 'room:create', { name: 'H' });
